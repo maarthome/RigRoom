@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- LV2 GUIs that need direct access to the plugin (instance-access/data-access, e.g. DuskVerb and other JUCE-style GUIs) now open inside RigRoom instead of the helper process, where they failed with "Data or instance access missing". X11 GUIs opened inside RigRoom are embedded directly and also get these features.
 - Fixed plugin GUIs in the helper failing to appear (BadWindow errors): the plugin's area now exists on the X server before the plugin creates its window in it.
 - An X error about a plugin window that just went away (BadWindow) no longer ends RigRoom or the plugin GUI; it is logged and ignored.
 - Fixed plugin GUIs (e.g. Ouraverb) growing with every zoom until the screen zoom hit its limit: the plugin is created in its own area below the bar, and a later size change is only shown, not zoomed to again.

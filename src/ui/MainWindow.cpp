@@ -93,6 +93,8 @@
 #include <QProcessEnvironment>
 #include <QDataStream>
 #include <X11/Xlib.h>
+#include <lv2/instance-access/instance-access.h>
+#include <lv2/data-access/data-access.h>
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
 #include <lv2/ui/ui.h>
@@ -5528,6 +5530,24 @@ static qreal x11UiScaleFactor() {
     return scale;
 }
 
+// A UI that needs direct access to the plugin's DSP instance
+// (instance-access or data-access) cannot run in the separate helper process;
+// it is opened in RigRoom's own process instead.
+static bool uiNeedsInstanceAccess(LV2PluginNode* node, const LilvUI* ui) {
+    if (!node || !ui || !node->getLilvWorld() || !node->getInstance()) return false;
+    LilvWorld* world = node->getLilvWorld();
+    LilvNode* required = lilv_new_uri(world, LV2_CORE__requiredFeature);
+    LilvNode* instanceAccess = lilv_new_uri(world, LV2_INSTANCE_ACCESS_URI);
+    LilvNode* dataAccess = lilv_new_uri(world, LV2_DATA_ACCESS_URI);
+    const bool needs = lilv_world_ask(world, lilv_ui_get_uri(ui), required, instanceAccess) ||
+                       lilv_world_ask(world, lilv_ui_get_uri(ui), required, dataAccess);
+    lilv_node_free(required);
+    lilv_node_free(instanceAccess);
+    lilv_node_free(dataAccess);
+    if (needs) std::cerr << "PluginWindow: GUI needs the plugin instance, opening it in RigRoom" << std::endl;
+    return needs;
+}
+
 class ExternalPluginUIWindow : public QObject {
 public:
     ExternalPluginUIWindow(LV2PluginNode* node, const LilvUI* ui, bool x11Ui, WId parentWindow, QObject* parent = nullptr)
@@ -6509,11 +6529,44 @@ public:
         m_unmapFeature.URI = "http://lv2plug.in/ns/ext/urid#unmap";
         m_unmapFeature.data = &m_uridUnmap;
 
-        m_features[0] = &m_mapFeature;
-        m_features[1] = &m_unmapFeature;
-        m_features[2] = &m_optionsFeature;
-        m_features[3] = &m_resizeFeature;
-        m_features[4] = nullptr;
+        // Wrapper UIs (JUCE, DPF with direct access, ...) talk to their own DSP
+        // instance; they only load when instance-access and data-access are
+        // offered, which is only possible in RigRoom's own process.
+        LilvInstance* dspInstance = m_node->getInstance();
+        m_instanceFeature.URI = LV2_INSTANCE_ACCESS_URI;
+        m_instanceFeature.data = dspInstance ? lilv_instance_get_handle(dspInstance) : nullptr;
+        m_dataAccess.data_access = dspInstance ? lilv_instance_get_descriptor(dspInstance)->extension_data : nullptr;
+        m_dataFeature.URI = LV2_DATA_ACCESS_URI;
+        m_dataFeature.data = &m_dataAccess;
+
+        // An X11 UI is embedded directly in a native area of this window, no
+        // toolkit wrapper needed. The area starts as large as the room below
+        // the bar, for UIs that size themselves to their parent.
+        QWidget* x11Host = nullptr;
+        if (uiType == LV2_UI__X11UI) {
+            x11Host = new QWidget(this);
+            x11Host->setObjectName("pluginContainer");
+            x11Host->setAttribute(Qt::WA_NativeWindow);
+            x11Host->setAttribute(Qt::WA_NoSystemBackground);
+            x11Host->setAttribute(Qt::WA_OpaquePaintEvent);
+            const QRect room = ScreenFit::availableArea(this);
+            if (room.isValid()) x11Host->resize(room.width(), qMax(1, room.height() - barHeight));
+            m_parentFeature.URI = LV2_UI__parent;
+            m_parentFeature.data = reinterpret_cast<void*>(static_cast<uintptr_t>(x11Host->winId()));
+            containerType = LV2_UI__X11UI;
+        }
+
+        int featureCount = 0;
+        m_features[featureCount++] = &m_mapFeature;
+        m_features[featureCount++] = &m_unmapFeature;
+        m_features[featureCount++] = &m_optionsFeature;
+        m_features[featureCount++] = &m_resizeFeature;
+        if (dspInstance) {
+            m_features[featureCount++] = &m_instanceFeature;
+            m_features[featureCount++] = &m_dataFeature;
+        }
+        if (x11Host) m_features[featureCount++] = &m_parentFeature;
+        m_features[featureCount] = nullptr;
         
         const std::string pluginUri = node->getPluginURI();
         
@@ -6530,9 +6583,26 @@ public:
         );
         
         if (m_suilInstance) {
-            QWidget* widget = (QWidget*)suil_instance_get_widget(m_suilInstance);
+            QWidget* widget = nullptr;
+            QSize directSize;
+            if (x11Host) {
+                // The UI's own X window, inside the native area.
+                const auto child = static_cast<::Window>(reinterpret_cast<uintptr_t>(suil_instance_get_widget(m_suilInstance)));
+                static Display* display = []() { XSetErrorHandler(ignoreXError); return XOpenDisplay(nullptr); }();
+                XWindowAttributes attributes{};
+                if (child && display && XGetWindowAttributes(display, child, &attributes)) {
+                    XMapWindow(display, child);
+                    XFlush(display);
+                    widget = x11Host;
+                    double ratio = devicePixelRatioF();
+                    if (ratio <= 0.0) ratio = 1.0;
+                    directSize = QSize(qRound(attributes.width / ratio), qRound(attributes.height / ratio));
+                }
+            } else {
+                widget = (QWidget*)suil_instance_get_widget(m_suilInstance);
+            }
             if (widget) {
-                QSize nativeSize = widget->baseSize();
+                QSize nativeSize = directSize.isValid() && !directSize.isEmpty() ? directSize : widget->baseSize();
                 if (!nativeSize.isValid() || nativeSize.isEmpty()) {
                     nativeSize = widget->minimumSizeHint();
                 }
@@ -6599,6 +6669,7 @@ public:
         }
         
         if (!m_suilInstance) {
+            if (x11Host) x11Host->hide();
             QLabel* errorLabel = new QLabel("Failed to load plugin GUI.\nUsing generic parameters sidebar instead.", this);
             errorLabel->setAlignment(Qt::AlignCenter);
             errorLabel->setStyleSheet(UiScale::css("color: #888888; font-size: 12px; margin: 15px;"));
@@ -6705,7 +6776,11 @@ private:
     float m_sampleRate = 48000.0f;
     float m_uiScaleFactor = 1.0f;
     int32_t m_blockLength = 256;
-    const LV2_Feature* m_features[5] = {};
+    LV2_Feature m_parentFeature{};
+    LV2_Feature m_instanceFeature{};
+    LV2_Extension_Data_Feature m_dataAccess{};
+    LV2_Feature m_dataFeature{};
+    const LV2_Feature* m_features[8] = {};
     const LV2UI_Idle_Interface* m_idleInterface = nullptr;
     QTimer* m_idleTimer = nullptr;
     QTimer* m_portSyncTimer = nullptr;
@@ -7146,7 +7221,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
             
             connect(uiBtn, &QPushButton::clicked, this, [this, lv2Node, uiToOpen, isGtkUi, isX11Ui]() {
                 if (raisePluginUIForNode(lv2Node)) return;
-                if (isGtkUi || isX11Ui) {
+                if ((isGtkUi || isX11Ui) && !(isX11Ui && uiNeedsInstanceAccess(lv2Node, uiToOpen))) {
                     auto* uiWin = new ExternalPluginUIWindow(lv2Node, uiToOpen, isX11Ui, winId(), this);
                     if (!uiWin->isValid()) {
                         uiWin->deleteLater();
@@ -7972,7 +8047,7 @@ void MainWindow::onPluginDoubleClicked(std::shared_ptr<AudioNode> node) {
                         else if (typeUri == LV2_UI__X11UI) isX11Ui = true;
                     }
 
-                    if (isGtkUi || isX11Ui) {
+                    if ((isGtkUi || isX11Ui) && !(isX11Ui && uiNeedsInstanceAccess(lv2Node, uiToOpen))) {
                         auto* uiWin = new ExternalPluginUIWindow(lv2Node, uiToOpen, isX11Ui, winId(), this);
                         if (!uiWin->isValid()) {
                             uiWin->deleteLater();
