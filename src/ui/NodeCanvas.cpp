@@ -1,5 +1,6 @@
 #include "NodeCanvas.h"
 #include "UiScale.h"
+#include "SectionScale.h"
 #include <set>
 #include <array>
 #include "GridRow.h"
@@ -290,6 +291,9 @@ NodeCanvas::NodeCanvas(AudioEngine* engine, QWidget* parent)
     setRenderHint(QPainter::Antialiasing);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    // The SPLIT tool sits at a fixed place on screen; keep it there on scroll.
+    connect(horizontalScrollBar(), &QScrollBar::valueChanged, this, [this]() { positionSplitTool(); });
+    connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this]() { positionSplitTool(); });
     setBackgroundBrush(QColor(14, 14, 16));
     setDragMode(QGraphicsView::NoDrag);
     setAcceptDrops(true); // plugins dragged in from the plugin browser
@@ -993,6 +997,7 @@ qreal NodeCanvas::getRowCenterY(int row) const {
 void NodeCanvas::updateLayout() {
     scheduleAutoFit();
     clearSceneItems();
+    m_splitTool = nullptr;  // deleted with the other scene items
 
     int highestUsedCol = getHighestOccupiedCol();
     m_numCols = std::clamp(m_numCols, std::max(4, highestUsedCol + 1), MAX_COLS);
@@ -1048,7 +1053,8 @@ void NodeCanvas::updateLayout() {
         }
     }
 
-    if (fitsInViewport) {
+    if (fitsInViewport || m_snake) {
+        // The wrapped layout always fits the width: no scroll bar.
         setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     } else {
         setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -1057,19 +1063,24 @@ void NodeCanvas::updateLayout() {
     // The view shows viewport height / zoom of the scene; filling exactly that
     // keeps a scroll bar away when everything fits.
     qreal H = canvasHeightFor(viewport()->height() / std::max(0.01, m_zoomLevel));
-    if (m_bandColumns > 0) {
-        // Each line is only as tall as its lanes need; the lines stack.
-        H = canvasHeightFor(0.0) + 24.0;
+    const bool fillRows = m_snake && m_snakeColumns > 0;
+    if (m_bandColumns > 0 || fillRows) {
+        // Each row is only as tall as its lanes need, with a narrow gap for the
+        // wire to the next row; the rows stack.
+        H = CanvasMetrics::cardHeight + activeLaneSteps() * CanvasMetrics::minimumLaneHeight + 30.0;
     }
-    if (m_snake && m_snakeColumns > 0 && isVisible() && viewport()->width() > 200) {
-        // A chosen number of blocks per row always fits the width: blocks
-        // shrink below the chosen size only as far as needed, and grow back
-        // to it when there is room again.
+    if (fillRows && isVisible() && viewport()->width() > 200 && viewport()->height() > 100) {
+        // A chosen number of blocks per row: the blocks are as large as the
+        // board allows, filling its width or (with many rows) its height,
+        // leaving the bottom row of controls free.
         const qreal lineW = m_bandColumns > 0
-            ? m_rowLeft + m_bandColumnsRest * CanvasMetrics::columnPitch + MARGIN_X + 16.0
-            : m_trackBase + m_numCols * CanvasMetrics::columnPitch + CanvasMetrics::clearGap + outputW + MARGIN_X + 16.0;
-        const double fitZoom = viewport()->width() / lineW;
-        const double target = std::clamp(std::min(m_preferredZoom, fitZoom), 0.5, 2.0);
+            ? m_rowLeft + m_bandColumnsRest * CanvasMetrics::columnPitch + MARGIN_X + 8.0
+            : m_trackBase + m_numCols * CanvasMetrics::columnPitch + CanvasMetrics::clearGap + outputW + MARGIN_X + 8.0;
+        const qreal boardH = H * m_bandCount + 8.0;
+        const int controls = m_zoomOverlay ? m_zoomOverlay->height() + 24 : 56;
+        const double fitW = viewport()->width() / lineW;
+        const double fitH = std::max(1, viewport()->height() - controls) / boardH;
+        const double target = std::clamp(std::min(fitW, fitH), 0.5, 3.0);
         if (std::abs(target - m_zoomLevel) > 0.01) {
             QTimer::singleShot(0, this, [this, target]() { applyZoom(target, true); });
         }
@@ -1114,11 +1125,20 @@ void NodeCanvas::updateLayout() {
     layoutRow(4, rowCenters[4], trackLeft, trackRight, trackW, sysRightX, sysLeftX, rowCenters[m_rows[4].parentRow]);
 
     auto* splitTool = new SplitToolItem(this);
-    splitTool->setPos(MARGIN_X,
-                      sysCY - CanvasMetrics::cardHeight / 2.0
-                          - CanvasMetrics::splitToolHeight - 6.0);
     m_scene->addItem(splitTool);
     m_dynamicItems.push_back(splitTool);
+    if (m_snake) {
+        // Kept at the left of the bottom row of controls, at a fixed size on
+        // screen, whatever the zoom or scroll position.
+        splitTool->setFlag(QGraphicsItem::ItemIgnoresTransformations);
+        splitTool->setZValue(50);
+        m_splitTool = splitTool;
+        positionSplitTool();
+    } else {
+        splitTool->setPos(MARGIN_X,
+                          sysCY - CanvasMetrics::cardHeight / 2.0
+                              - CanvasMetrics::splitToolHeight - 6.0);
+    }
     
     // ── If main row is empty but other rows have blocks, draw trunk ──────────
     if (m_rows[MAIN_ROW].isEmpty()) {
@@ -2421,7 +2441,7 @@ void NodeCanvas::setZoomLevel(double zoom) {
     stopZoomAnimation();
     // The size chosen (zoom buttons, Plugin Block Size): a row that does not
     // fit may shrink below it, and grows back to it when it fits again.
-    m_preferredZoom = std::clamp(zoom, 0.5, 2.0);
+    m_preferredZoom = std::clamp(zoom, 0.5, 3.0);
     applyZoom(zoom, true);
 }
 
@@ -2434,7 +2454,7 @@ void NodeCanvas::stopZoomAnimation() {
 }
 
 void NodeCanvas::applyZoom(double zoom, bool relayout) {
-    double newZoom = std::clamp(zoom, 0.5, 2.0);
+    double newZoom = std::clamp(zoom, 0.5, 3.0);
     if (qAbs(m_zoomLevel - newZoom) < 0.001) return;
 
     double scaleFactor = newZoom / m_zoomLevel;
@@ -2449,7 +2469,7 @@ void NodeCanvas::applyZoom(double zoom, bool relayout) {
         m_zoomOverlayMinusBtn->setEnabled(m_zoomLevel > 0.51);
     }
     if (m_zoomOverlayPlusBtn) {
-        m_zoomOverlayPlusBtn->setEnabled(m_zoomLevel < 1.99);
+        m_zoomOverlayPlusBtn->setEnabled(m_zoomLevel < 2.99);
     }
 
     emit zoomChanged(m_zoomLevel);
@@ -2549,6 +2569,18 @@ void NodeCanvas::updateZoomOverlayPos() {
     int y = viewport()->height() - m_zoomOverlay->height() - 16;
     m_zoomOverlay->move(x, y);
     m_zoomOverlay->raise();
+    positionSplitTool();
+}
+
+void NodeCanvas::positionSplitTool() {
+    if (!m_splitTool) return;
+    // As large as the corner controls are scaled (Settings > GUI).
+    const qreal scale = m_zoomOverlay ? SectionScale::factorOf(m_zoomOverlay) * 1.4 : 1.4;
+    m_splitTool->setScale(scale);
+    const int toolH = qRound(CanvasMetrics::splitToolHeight * scale);
+    int y = viewport()->height() - 16 - toolH;
+    if (m_zoomOverlay) y = m_zoomOverlay->y() + (m_zoomOverlay->height() - toolH) / 2;
+    m_splitTool->setPos(mapToScene(QPoint(16, y)));
 }
 
 void NodeCanvas::addZoomOverlayWidget(QWidget* widget) {

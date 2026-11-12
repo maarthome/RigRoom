@@ -1812,7 +1812,7 @@ void MainWindow::setupUI() {
     
     // --- STATUS BAR ---
     QWidget* statusBarContainer = new QWidget(this);
-    statusBarContainer->setFixedHeight(24);
+    statusBarContainer->setFixedHeight(30);
     statusBarContainer->setStyleSheet(UiScale::css("background-color: #18181B; border-top: 1px solid #29292D;"));
     QHBoxLayout* statusLayout = new QHBoxLayout(statusBarContainer);
     statusLayout->setContentsMargins(8, 0, 8, 0);
@@ -1820,7 +1820,16 @@ void MainWindow::setupUI() {
     m_statusLabel = new QLabel("Ready | JACK Latency: " + QString::number(currentSize * 1000.0 / m_engine.getSampleRate(), 'f', 2) + " ms", this);
     m_statusLabel->setStyleSheet(UiScale::css("color: #888888; font-size: 11px;"));
     statusLayout->addWidget(m_statusLabel);
-    statusLayout->addStretch();
+    statusLayout->addStretch(1);
+    // The loaded preset's name, in the middle of the bottom line (it used to
+    // sit in the board's top-left corner, taking room from the blocks).
+    if (m_presetNameLabel) {
+        m_presetNameLabel->setParent(statusBarContainer);
+        m_presetNameLabel->setStyleSheet(
+            "QLabel#canvasInfo { background: transparent; border: none; padding: 0px 8px; }");
+        statusLayout->addWidget(m_presetNameLabel, 0, Qt::AlignVCenter);
+        statusLayout->addStretch(1);
+    }
 
     m_midiIndicator = new QToolButton(this);
     m_midiIndicator->setText(QString::fromUtf8("● MIDI"));
@@ -3802,12 +3811,13 @@ void MainWindow::updateCanvasInfo() {
     const auto& scene = m_scenes.active();
     const QString sceneColor = scene.color.isEmpty() ? SceneModel::defaultColor(m_scenes.activeIndex()) : scene.color;
     const QString dot = m_unsavedChanges ? QString::fromUtf8("&nbsp;<span style='color:#FF9800;'>●</span>") : QString();
+    // One line, in the status line at the bottom.
     m_canvas->setInfoOverlayText(QString(
-        "<div style='font-size:11px; font-weight:bold; letter-spacing:1px;'>"
-        "<span style='color:#00B0FF;'>%1</span>"
+        "<span style='font-size:12px; font-weight:bold; color:#00B0FF;'>%1</span>"
         "<span style='color:#55555D;'>&nbsp;&nbsp;·&nbsp;&nbsp;</span>"
-        "<span style='color:%2;'>%3&nbsp;&nbsp;%4</span></div>"
-        "<div style='font-size:20px; font-weight:bold; color:#F2F2F5;'>%5%6</div>")
+        "<span style='font-size:12px; font-weight:bold; color:%2;'>%3&nbsp;&nbsp;%4</span>"
+        "<span style='color:#55555D;'>&nbsp;&nbsp;·&nbsp;&nbsp;</span>"
+        "<span style='font-size:15px; font-weight:bold; color:#F2F2F5;'>%5%6</span>")
         .arg(slot, sceneColor)
         .arg(m_scenes.activeIndex() + 1)
         .arg(scene.name.toHtmlEscaped(), name.toHtmlEscaped(), dot));
@@ -3908,7 +3918,8 @@ void MainWindow::startPresetRename() {
     label->adjustSize();
     auto* editor = new QLineEdit(label);
     editor->setText(m_currentPresetName);
-    editor->setGeometry(6, label->height() - 36, label->width() - 12, 30);
+    const int editorH = std::min(30, label->height());
+    editor->setGeometry(2, label->height() - editorH, label->width() - 4, editorH);
     editor->setStyleSheet(UiScale::css("QLineEdit { background-color: #1E1E22; color: white; border: 1px solid #00B0FF; border-radius: 4px; padding: 1px 6px; font-size: 16px; font-weight: bold; }"));
     editor->selectAll();
     editor->show();

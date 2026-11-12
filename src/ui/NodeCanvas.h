@@ -327,6 +327,8 @@ private:
     void scheduleAutoFit();
     void setupZoomOverlay();
     void updateZoomOverlayPos();
+    void positionSplitTool();
+    QGraphicsItem* m_splitTool = nullptr;  // the SPLIT tool when it sits with the corner controls
 
     void setItemTargetPos(QGraphicsItem* item, QPointF targetPos, bool animate = true);
 

@@ -24,6 +24,8 @@
 - Settings > GUI also sets Blocks per Row, Plugin Block Size, and the sizes of the bank/presets/scenes buttons, the top toolbar and the board's corner controls. No size can push a part off the screen: it shrinks to what fits.
 - Wrapped rows of plugin blocks after the first start at the left edge, under the input block.
 - Blocks per Row counts System Input and System Output; the output opens a row of its own when the last row is full. Default Columns is no longer in the Audio settings.
+- With a set Blocks per Row the blocks fill the board: rows sit close together and the blocks grow to fill its width or height (zoom up to 300%). No horizontal scroll bar in the wrapped layout.
+- The preset name moved to the middle of the status line; the SPLIT tool sits at the left of the board's bottom row of controls.
 - The Settings window is 1.5 times larger by default (Settings > GUI > Settings Window).
 - An on-screen keyboard appears when a text or number field is tapped; the field's window moves up so the keyboard does not cover it (Settings > GUI > On-screen Keyboard).
 - Number fields have large up/down buttons; tapping them changes the value without opening the keyboard (only tapping the number does).
