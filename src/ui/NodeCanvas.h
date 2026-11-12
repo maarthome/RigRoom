@@ -244,7 +244,8 @@ private:
     qreal bandStartU(int band) const;    // track distance where line `band` starts
     qreal bandLeftX(int band) const;     // scene x of the start of line `band`
     bool m_snake = false;
-    int m_snakeColumns = 0;    // chosen blocks per line; 0 = fit the width
+    int m_snakeColumns = 0;    // chosen blocks per row (input/output count); 0 = fit the width
+    double m_preferredZoom = 1.0; // zoom the user chose; fitting a row may go below it
     int m_bandColumns = 0;     // columns on the first line; 0 = one straight line
     int m_bandColumnsRest = 0; // columns on the following lines (they start further left)
     qreal m_rowLeft = 0.0;     // scene x where the following lines start

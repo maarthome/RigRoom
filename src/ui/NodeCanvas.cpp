@@ -1016,23 +1016,34 @@ void NodeCanvas::updateLayout() {
     m_trackBase = MARGIN_X + inputW + CanvasMetrics::clearGap / 2.0;
     m_bandColumns = 0;
     m_bandCount = 1;
-    if (m_snake && (m_snakeColumns > 0 || !fitsInViewport)) {
-        int perLine = m_snakeColumns;
-        if (perLine <= 0) {
-            const qreal room = visibleSceneW - m_trackBase - CanvasMetrics::clearGap - outputW - MARGIN_X;
-            perLine = std::max(2, int(std::floor(room / CanvasMetrics::columnPitch)));
+    m_rowLeft = MARGIN_X - CanvasMetrics::clearGap / 2.0;
+    if (m_snake && m_snakeColumns > 0) {
+        // A chosen number of blocks per row, counting the input and output
+        // blocks: the first row is the input and N - 1 columns, the next rows
+        // N columns each, starting at the left edge; the output follows the
+        // last column, or opens a row of its own when that row is full.
+        const int perRow = std::max(2, m_snakeColumns);
+        if (m_numCols + 2 > perRow) {
+            m_bandColumns = perRow - 1;
+            m_bandColumnsRest = perRow;
+            const int rest = std::max(0, m_numCols - m_bandColumns);
+            const int fullRows = rest / perRow;
+            const int lastRowColumns = rest % perRow;
+            // Rows of columns after the first, plus a row for the output alone
+            // when the columns end exactly at the end of a row.
+            m_bandCount = 1 + fullRows + (lastRowColumns > 0 ? 1 : 0)
+                        + ((rest > 0 && lastRowColumns == 0) || rest == 0 ? 1 : 0);
         }
+    } else if (m_snake && !fitsInViewport) {
+        // Auto: as many columns as fit the width. The first line starts after
+        // the input block; the following lines start at the left edge, under
+        // it, so they hold more.
+        const qreal room = visibleSceneW - m_trackBase - CanvasMetrics::clearGap - outputW - MARGIN_X;
+        const int perLine = std::max(2, int(std::floor(room / CanvasMetrics::columnPitch)));
         if (perLine < m_numCols) {
-            // The first line starts after the input block; the following
-            // lines start at the left edge, under it, so they hold more
-            // blocks (unless a fixed number per line is chosen).
-            m_rowLeft = MARGIN_X - CanvasMetrics::clearGap / 2.0;
             m_bandColumns = perLine;
-            m_bandColumnsRest = perLine;
-            if (m_snakeColumns <= 0) {
-                const qreal firstLineEnd = m_trackBase + perLine * CanvasMetrics::columnPitch;
-                m_bandColumnsRest = std::max(2, int(std::floor((firstLineEnd - m_rowLeft) / CanvasMetrics::columnPitch)));
-            }
+            const qreal firstLineEnd = m_trackBase + perLine * CanvasMetrics::columnPitch;
+            m_bandColumnsRest = std::max(2, int(std::floor((firstLineEnd - m_rowLeft) / CanvasMetrics::columnPitch)));
             m_bandCount = 1 + (std::max(0, m_numCols - perLine) + m_bandColumnsRest - 1) / m_bandColumnsRest;
         }
     }
@@ -1050,15 +1061,17 @@ void NodeCanvas::updateLayout() {
         // Each line is only as tall as its lanes need; the lines stack.
         H = canvasHeightFor(0.0) + 24.0;
     }
-    if (m_snake && m_snakeColumns > 0) {
-        // A chosen number of blocks per line always fits the width: blocks too
-        // large for it shrink (down to the smallest zoom).
-        const int lineColumns = m_bandColumns > 0 ? m_bandColumns : m_numCols;
-        const qreal lineW = m_trackBase + lineColumns * CanvasMetrics::columnPitch
-                          + CanvasMetrics::clearGap + outputW + MARGIN_X + 16.0;
-        if (lineW > visibleSceneW + 1.0 && m_zoomLevel > 0.501 && viewport()->width() > 0) {
-            const double fitZoom = viewport()->width() / lineW;
-            QTimer::singleShot(0, this, [this, fitZoom]() { applyZoom(fitZoom, true); });
+    if (m_snake && m_snakeColumns > 0 && isVisible() && viewport()->width() > 200) {
+        // A chosen number of blocks per row always fits the width: blocks
+        // shrink below the chosen size only as far as needed, and grow back
+        // to it when there is room again.
+        const qreal lineW = m_bandColumns > 0
+            ? m_rowLeft + m_bandColumnsRest * CanvasMetrics::columnPitch + MARGIN_X + 16.0
+            : m_trackBase + m_numCols * CanvasMetrics::columnPitch + CanvasMetrics::clearGap + outputW + MARGIN_X + 16.0;
+        const double fitZoom = viewport()->width() / lineW;
+        const double target = std::clamp(std::min(m_preferredZoom, fitZoom), 0.5, 2.0);
+        if (std::abs(target - m_zoomLevel) > 0.01) {
+            QTimer::singleShot(0, this, [this, target]() { applyZoom(target, true); });
         }
     }
     m_layoutHeight = H;
@@ -2406,6 +2419,9 @@ void NodeCanvas::setNumCols(int cols) {
 
 void NodeCanvas::setZoomLevel(double zoom) {
     stopZoomAnimation();
+    // The size chosen (zoom buttons, Plugin Block Size): a row that does not
+    // fit may shrink below it, and grows back to it when it fits again.
+    m_preferredZoom = std::clamp(zoom, 0.5, 2.0);
     applyZoom(zoom, true);
 }
 
