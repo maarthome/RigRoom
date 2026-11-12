@@ -5374,6 +5374,9 @@ public:
         
         QVBoxLayout* layout = new QVBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+        ScreenFit::addPluginBar(this, layout, QString::fromStdString(node->getName()));
+        const int barHeight = ScreenFit::kPluginBarHeight;
 
         m_dpy = nullptr;
         auto* x11App = qApp->nativeInterface<QNativeInterface::QX11Application>();
@@ -5441,11 +5444,11 @@ public:
         int logicalH = std::round(m_nativeHeight / ratio);
         
         if (m_scrolls) {
-            resize(ScreenFit::bounded(QSize(logicalW, logicalH), this));
+            resize(ScreenFit::bounded(QSize(logicalW, logicalH + barHeight), this));
         } else if (m_resizable) {
-            resize(logicalW, logicalH);
+            resize(logicalW, logicalH + barHeight);
         } else {
-            setFixedSize(logicalW, logicalH);
+            setFixedSize(logicalW, logicalH + barHeight);
         }
 
         // Create raw X11 child window as a child of the QDialog's X11 window
@@ -5524,7 +5527,7 @@ protected:
             rect.left = 0;
             rect.top = 0;
             rect.right = std::round(width() * ratio);
-            rect.bottom = std::round(height() * ratio);
+            rect.bottom = std::round(std::max(1, height() - ScreenFit::kPluginBarHeight) * ratio);
             
             m_plugView->onSize(&rect);
         }
@@ -5665,6 +5668,9 @@ public:
         
         QVBoxLayout* layout = new QVBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+        ScreenFit::addPluginBar(this, layout, QString::fromStdString(node->getName()));
+        const int barHeight = ScreenFit::kPluginBarHeight;
 
         m_dpy = nullptr;
         auto* x11App = qApp->nativeInterface<QNativeInterface::QX11Application>();
@@ -5719,7 +5725,7 @@ public:
         int logicalW = std::round(m_nativeWidth / ratio);
         int logicalH = std::round(m_nativeHeight / ratio);
         
-        resize(ScreenFit::bounded(QSize(logicalW, logicalH), this));
+        resize(ScreenFit::bounded(QSize(logicalW, logicalH + barHeight), this));
 
         WId dialogWinId = this->winId();
         int screen = DefaultScreen(m_dpy);
@@ -5758,7 +5764,7 @@ public:
                 setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
                 setMinimumSize(ScreenFit::bounded(QSize(300, 200), this));
                 if (m_scrolls) m_containerWidget->setFixedSize(logicalW, logicalH);
-                resize(ScreenFit::bounded(QSize(logicalW, logicalH), this));
+                resize(ScreenFit::bounded(QSize(logicalW, logicalH + ScreenFit::kPluginBarHeight), this));
                 updateChildWindows(m_nativeWidth, m_nativeHeight);
             }, Qt::QueuedConnection);
         });
@@ -5820,7 +5826,7 @@ protected:
                     int logicalW = std::round(m_nativeWidth / ratio);
                     int logicalH = std::round(m_nativeHeight / ratio);
                     setMinimumSize(ScreenFit::bounded(QSize(300, 200), this));
-                    resize(ScreenFit::bounded(QSize(logicalW, logicalH), this));
+                    resize(ScreenFit::bounded(QSize(logicalW, logicalH + ScreenFit::kPluginBarHeight), this));
                     updateChildWindows(m_nativeWidth, m_nativeHeight);
                 }
             }
@@ -5835,7 +5841,7 @@ protected:
             double ratio = devicePixelRatioF();
             if (ratio <= 0.0) ratio = 1.0;
             uint32_t physW = std::round(width() * ratio);
-            uint32_t physH = std::round(height() * ratio);
+            uint32_t physH = std::round(std::max(1, height() - ScreenFit::kPluginBarHeight) * ratio);
 
             const clap_plugin_t* plugin = m_node->getClapPlugin();
             const clap_plugin_gui_t* extGui = m_node->getClapGuiExtension();
@@ -5876,6 +5882,9 @@ public:
         
         QVBoxLayout* layout = new QVBoxLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+        ScreenFit::addPluginBar(this, layout, QString::fromStdString(node->getName()));
+        const int barHeight = ScreenFit::kPluginBarHeight;
         
         m_suilHost = suil_host_new(suil_port_write, nullptr, nullptr, nullptr);
         
@@ -6023,7 +6032,7 @@ public:
                 // scrolls inside the window; a resizable one is resized to fit.
                 const QRect area = ScreenFit::availableArea(this);
                 m_scrolls = !supportsResize && area.isValid() &&
-                            (nativeSize.width() > area.width() || nativeSize.height() > area.height());
+                            (nativeSize.width() > area.width() || nativeSize.height() + barHeight > area.height());
                 if (m_scrolls) {
                     layout->addWidget(ScreenFit::scrollable(widget, this));
                 } else {
@@ -6041,7 +6050,7 @@ public:
                     }
                     setMinimumSize(100, 100);
                     setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
-                    resize(ScreenFit::bounded(nativeSize, this));
+                    resize(ScreenFit::bounded(nativeSize + QSize(0, ScreenFit::kPluginBarHeight), this));
                 });
                 for (const auto& param : m_node->getControlPorts()) {
                     if (!param.isOutput) {
@@ -6105,7 +6114,7 @@ public:
             int logicalH = std::round(height / ratio);
             setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
             setMinimumSize(100, 100);
-            resize(ScreenFit::bounded(QSize(logicalW, logicalH), this));
+            resize(ScreenFit::bounded(QSize(logicalW, logicalH + ScreenFit::kPluginBarHeight), this));
             if (m_uiWidget) {
                 if (m_scrolls) m_uiWidget->setFixedSize(logicalW, logicalH);
                 else m_uiWidget->resize(logicalW, logicalH);
@@ -6119,8 +6128,9 @@ protected:
         // When scrolling, the window is a viewport onto the UI, which keeps
         // its own size.
         if (m_scrolls) return;
+        const int uiHeight = std::max(1, height() - ScreenFit::kPluginBarHeight);
         if (m_uiWidget) {
-            m_uiWidget->resize(width(), height());
+            m_uiWidget->resize(width(), uiHeight);
         }
         if (m_suilInstance) {
             const LV2UI_Resize* resizeExt = static_cast<const LV2UI_Resize*>(
@@ -6129,7 +6139,7 @@ protected:
                 double ratio = devicePixelRatioF();
                 if (ratio <= 0.0) ratio = 1.0;
                 int physW = std::round(width() * ratio);
-                int physH = std::round(height() * ratio);
+                int physH = std::round(uiHeight * ratio);
                 resizeExt->ui_resize(suil_instance_get_handle(m_suilInstance), physW, physH);
             }
         }

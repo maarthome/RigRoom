@@ -4,6 +4,10 @@
 #include <QEvent>
 #include <QFrame>
 #include <QGuiApplication>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QVBoxLayout>
 #include <QObject>
 #include <QPoint>
 #include <QRect>
@@ -52,16 +56,47 @@ inline QSize physicalArea(const QWidget* widget = nullptr) {
     return QSize(qRound(area.width() * ratio), qRound(area.height() * ratio));
 }
 
+// Height of the bar with a Close button above every plugin GUI. Without a
+// window manager (a touchscreen running only RigRoom) windows have no title
+// bar, so this is the only way to close them.
+inline constexpr int kPluginBarHeight = 36;
+
 // How much a plugin view of the given device-pixel size must shrink to fit
-// the screen: 1.0 when it already fits.
+// the screen below the plugin bar: 1.0 when it already fits.
 inline double shrinkToFit(int width, int height, const QWidget* widget = nullptr) {
-    const QSize room = physicalArea(widget);
+    QSize room = physicalArea(widget);
     if (!room.isValid() || width <= 0 || height <= 0) return 1.0;
+    QScreen* screen = widget ? widget->screen() : nullptr;
+    if (!screen) screen = QGuiApplication::primaryScreen();
+    const qreal ratio = screen && screen->devicePixelRatio() > 0.0 ? screen->devicePixelRatio() : 1.0;
+    room.setHeight(qMax(1, room.height() - qRound(kPluginBarHeight * ratio)));
     return qMin(1.0, qMin(room.width() / double(width), room.height() / double(height)));
 }
 
 inline bool fitsScreen(int width, int height, const QWidget* widget = nullptr) {
     return shrinkToFit(width, height, widget) >= 1.0;
+}
+
+// Put the plugin bar (name and Close button) at the top of a plugin window.
+inline void addPluginBar(QWidget* window, QVBoxLayout* layout, const QString& title) {
+    auto* bar = new QWidget(window);
+    bar->setObjectName("pluginBar");
+    bar->setFixedHeight(kPluginBarHeight);
+    bar->setStyleSheet("QWidget#pluginBar { background: #1E1E22; border-bottom: 1px solid #333338; }"
+                       "QLabel { color: #E0E0E0; font-weight: bold; background: transparent; }"
+                       "QPushButton { background: #3A2A2E; color: #FFFFFF; border: 1px solid #6A3A42;"
+                       " border-radius: 4px; padding: 2px 14px; font-weight: bold; }"
+                       "QPushButton:pressed { background: #6A3A42; }");
+    auto* row = new QHBoxLayout(bar);
+    row->setContentsMargins(10, 3, 4, 3);
+    auto* label = new QLabel(title, bar);
+    row->addWidget(label, 1);
+    auto* close = new QPushButton(QString::fromUtf8("Close \u2715"), bar);
+    close->setFocusPolicy(Qt::NoFocus);
+    close->setMinimumHeight(kPluginBarHeight - 8);
+    QObject::connect(close, &QPushButton::clicked, window, &QWidget::close);
+    row->addWidget(close);
+    layout->insertWidget(0, bar);
 }
 
 // Shrink a top-level window that is larger than the screen and move it so it

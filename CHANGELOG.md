@@ -16,6 +16,7 @@
 - On small screens, such as a Raspberry Pi touchscreen, the main window fills the screen and scrolls when its controls need more room, Settings tabs scroll, and dialogs are kept on screen.
 - The whole interface scales to fit small screens automatically. Settings > Screen Scale can set it by hand (40% to 200%); it applies the next time RigRoom starts.
 - Plugin windows larger than the screen are fitted to it: RigRoom asks VST3 and CLAP plugins to draw at a smaller scale, resizes plugins that allow it, and lets fixed-size plugin windows scroll.
+- Every plugin window has a Close button at the top, so it can be closed on a screen without a window manager. LV2 X11 GUIs (such as Dragonfly) are started at a smaller LV2 scale factor when they are larger than the screen, never grow past it, and get arrow buttons to pan over a GUI that still does not fit.
 
 ## 0.13.0 - 2026-10-01
 
