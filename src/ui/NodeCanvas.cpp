@@ -1,4 +1,5 @@
 #include "NodeCanvas.h"
+#include "UiScale.h"
 #include <set>
 #include <array>
 #include "GridRow.h"
@@ -2208,9 +2209,9 @@ void NodeCanvas::applyZoom(double zoom, bool relayout) {
 void NodeCanvas::setupZoomOverlay() {
     m_zoomOverlay = new QFrame(this);
     m_zoomOverlay->setObjectName("zoomOverlay");
-    m_zoomOverlay->setStyleSheet(
+    m_zoomOverlay->setStyleSheet(UiScale::css(
         "QFrame#zoomOverlay { background-color: rgba(20, 22, 28, 225); border: 1px solid rgba(255, 255, 255, 30); border-radius: 8px; }"
-    );
+    ));
 
     QHBoxLayout* layout = new QHBoxLayout(m_zoomOverlay);
     m_zoomOverlayLayout = layout;
@@ -2231,14 +2232,14 @@ void NodeCanvas::setupZoomOverlay() {
     m_zoomOverlayMinusBtn->setFixedSize(22, 22);
     m_zoomOverlayMinusBtn->setToolTip("Zoom Out (Ctrl + Wheel Down)");
     m_zoomOverlayMinusBtn->setCursor(Qt::PointingHandCursor);
-    m_zoomOverlayMinusBtn->setStyleSheet(btnStyle);
+    m_zoomOverlayMinusBtn->setStyleSheet(UiScale::css(btnStyle));
     connect(m_zoomOverlayMinusBtn, &QToolButton::clicked, this, &NodeCanvas::zoomOut);
     layout->addWidget(m_zoomOverlayMinusBtn);
 
     m_zoomOverlayLabel = new QLabel("100%", m_zoomOverlay);
     m_zoomOverlayLabel->setAlignment(Qt::AlignCenter);
     m_zoomOverlayLabel->setMinimumWidth(m_zoomOverlayLabel->fontMetrics().horizontalAdvance("200%") + 10);
-    m_zoomOverlayLabel->setStyleSheet("font-weight: bold; color: #00B0FF; font-size: 11px; padding: 0 4px;");
+    m_zoomOverlayLabel->setStyleSheet(UiScale::css("font-weight: bold; color: #00B0FF; font-size: 11px; padding: 0 4px;"));
     layout->addWidget(m_zoomOverlayLabel);
 
     m_zoomOverlayPlusBtn = new QToolButton(m_zoomOverlay);
@@ -2246,7 +2247,7 @@ void NodeCanvas::setupZoomOverlay() {
     m_zoomOverlayPlusBtn->setFixedSize(22, 22);
     m_zoomOverlayPlusBtn->setToolTip("Zoom In (Ctrl + Wheel Up)");
     m_zoomOverlayPlusBtn->setCursor(Qt::PointingHandCursor);
-    m_zoomOverlayPlusBtn->setStyleSheet(btnStyle);
+    m_zoomOverlayPlusBtn->setStyleSheet(UiScale::css(btnStyle));
     connect(m_zoomOverlayPlusBtn, &QToolButton::clicked, this, &NodeCanvas::zoomIn);
     layout->addWidget(m_zoomOverlayPlusBtn);
 
@@ -2255,7 +2256,7 @@ void NodeCanvas::setupZoomOverlay() {
     m_zoomOverlayResetBtn->setFixedSize(22, 22);
     m_zoomOverlayResetBtn->setToolTip("Reset Zoom (Ctrl+0)");
     m_zoomOverlayResetBtn->setCursor(Qt::PointingHandCursor);
-    m_zoomOverlayResetBtn->setStyleSheet(btnStyle);
+    m_zoomOverlayResetBtn->setStyleSheet(UiScale::css(btnStyle));
     connect(m_zoomOverlayResetBtn, &QToolButton::clicked, this, &NodeCanvas::resetZoom);
     layout->addWidget(m_zoomOverlayResetBtn);
 
@@ -2264,7 +2265,7 @@ void NodeCanvas::setupZoomOverlay() {
     m_zoomOverlayFitBtn->setFixedHeight(22);
     m_zoomOverlayFitBtn->setToolTip("Fit signal path");
     m_zoomOverlayFitBtn->setCursor(Qt::PointingHandCursor);
-    m_zoomOverlayFitBtn->setStyleSheet(btnStyle);
+    m_zoomOverlayFitBtn->setStyleSheet(UiScale::css(btnStyle));
     connect(m_zoomOverlayFitBtn, &QToolButton::clicked, this, &NodeCanvas::fitToCanvas);
     layout->addWidget(m_zoomOverlayFitBtn);
 
@@ -2274,8 +2275,8 @@ void NodeCanvas::setupZoomOverlay() {
     m_zoomOverlayAutoBtn->setFixedHeight(22);
     m_zoomOverlayAutoBtn->setToolTip("Auto-fit: keep the whole signal path in view when the window is resized or the board changes.\nZooming by hand turns it off.");
     m_zoomOverlayAutoBtn->setCursor(Qt::PointingHandCursor);
-    m_zoomOverlayAutoBtn->setStyleSheet(btnStyle +
-        "QToolButton:checked { background-color: #00598A; color: white; border-color: #00B0FF; }");
+    m_zoomOverlayAutoBtn->setStyleSheet(UiScale::css(btnStyle +
+        "QToolButton:checked { background-color: #00598A; color: white; border-color: #00B0FF; }"));
     connect(m_zoomOverlayAutoBtn, &QToolButton::toggled, this, &NodeCanvas::setAutoFit);
     layout->addWidget(m_zoomOverlayAutoBtn);
 
@@ -2305,7 +2306,7 @@ void NodeCanvas::addZoomOverlayWidget(QWidget* widget) {
     if (!m_zoomOverlayLayout || !widget) return;
     auto* divider = new QFrame(m_zoomOverlay);
     divider->setFrameShape(QFrame::VLine);
-    divider->setStyleSheet("color: rgba(255, 255, 255, 40);");
+    divider->setStyleSheet(UiScale::css("color: rgba(255, 255, 255, 40);"));
     m_zoomOverlayLayout->addWidget(divider);
     widget->setParent(m_zoomOverlay);
     m_zoomOverlayLayout->addWidget(widget);
@@ -2317,9 +2318,9 @@ QLabel* NodeCanvas::infoOverlay() {
         m_infoOverlay = new QLabel(this);
         m_infoOverlay->setObjectName("canvasInfo");
         m_infoOverlay->setTextFormat(Qt::RichText);
-        m_infoOverlay->setStyleSheet(
+        m_infoOverlay->setStyleSheet(UiScale::css(
             "QLabel#canvasInfo { background-color: rgba(20, 22, 28, 170); border: 1px solid rgba(255, 255, 255, 18);"
-            " border-radius: 8px; padding: 6px 12px; }");
+            " border-radius: 8px; padding: 6px 12px; }"));
         m_infoOverlay->move(16, 12);
     }
     return m_infoOverlay;

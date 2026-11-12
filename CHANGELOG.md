@@ -9,6 +9,9 @@
 - Deleting the loaded preset clears the board and leaves the slot empty, instead of loading the next preset.
 - The bank number is now a button that opens the bank grid; right-click it to name the bank.
 - A 32-frame buffer can be picked in Settings. If the audio interface doesn't accept a buffer size, the setting shows the size actually in use.
+- Text size can be set in Settings (85% to 200%) and applies the next time RigRoom starts.
+- A plugin's saved presets are listed under Plugin Presets > Load, so one click loads them.
+- Drop-down lists and selection lists use the dark theme instead of a near-white background.
 
 ## 0.13.0 - 2026-10-01
 

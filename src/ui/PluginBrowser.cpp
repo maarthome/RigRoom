@@ -1,4 +1,5 @@
 #include "PluginBrowser.h"
+#include "UiScale.h"
 #include "BrowserStyle.h"
 #include <QAbstractListModel>
 #include <QApplication>
@@ -337,7 +338,7 @@ PluginBrowserDialog::PluginBrowserDialog(const std::vector<PluginEntry>& plugins
     setModal(!library);
     if (library) setWindowFlag(Qt::Tool, true); // stays above the board, doesn't block it
     resize(library ? 980 : 1080, 680);
-    setStyleSheet(BrowserStyle::kStyleSheet);
+    setStyleSheet(UiScale::css(BrowserStyle::kStyleSheet));
 
     auto* root = new QHBoxLayout(this);
     root->setContentsMargins(12, 12, 12, 12);
@@ -378,7 +379,7 @@ PluginBrowserDialog::PluginBrowserDialog(const std::vector<PluginEntry>& plugins
     }
     chipRow->addStretch();
     m_count = new QLabel(this);
-    m_count->setStyleSheet("color: #8A8A96; font-size: 11px;");
+    m_count->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 11px;"));
     chipRow->addWidget(m_count);
     center->addLayout(chipRow);
 
@@ -401,7 +402,7 @@ PluginBrowserDialog::PluginBrowserDialog(const std::vector<PluginEntry>& plugins
     auto* hint = new QLabel(library
         ? "Drag a plugin onto the signal chain (between blocks or onto a free slot) · double-click or Enter adds it at the end · ☆ favourite"
         : "Enter or double-click adds the plugin · you can also drag it onto the chain · ↑ ↓ move while typing · ☆ favourite", this);
-    hint->setStyleSheet("color: #6E6E7A; font-size: 11px;");
+    hint->setStyleSheet(UiScale::css("color: #6E6E7A; font-size: 11px;"));
     center->addWidget(hint);
     root->addLayout(center, 5);
 
@@ -410,47 +411,47 @@ PluginBrowserDialog::PluginBrowserDialog(const std::vector<PluginEntry>& plugins
     infoScroll->setWidgetResizable(true);
     infoScroll->setFrameShape(QFrame::NoFrame);
     infoScroll->setFixedWidth(340);
-    infoScroll->setStyleSheet("QScrollArea { background: transparent; }");
+    infoScroll->setStyleSheet(UiScale::css("QScrollArea { background: transparent; }"));
     auto* info = new QWidget();
-    info->setStyleSheet("background: transparent;");
+    info->setStyleSheet(UiScale::css("background: transparent;"));
     auto* infoLayout = new QVBoxLayout(info);
     infoLayout->setContentsMargins(0, 0, 4, 0);
     infoLayout->setSpacing(8);
     m_preview = new QLabel(info);
     m_preview->setFixedSize(320, 190);
     m_preview->setAlignment(Qt::AlignCenter);
-    m_preview->setStyleSheet("background: #1B1B20; border-radius: 10px;");
+    m_preview->setStyleSheet(UiScale::css("background: #1B1B20; border-radius: 10px;"));
     m_preview->installEventFilter(this);
     infoLayout->addWidget(m_preview);
     m_previewHint = new QLabel(info);
-    m_previewHint->setStyleSheet("color: #6E6E7A; font-size: 10px;");
+    m_previewHint->setStyleSheet(UiScale::css("color: #6E6E7A; font-size: 10px;"));
     m_previewHint->setAlignment(Qt::AlignCenter);
     m_previewHint->hide();
     infoLayout->addWidget(m_previewHint);
     m_name = new QLabel(info);
     m_name->setWordWrap(true);
-    m_name->setStyleSheet("font-size: 17px; font-weight: bold; color: #F2F2F5;");
+    m_name->setStyleSheet(UiScale::css("font-size: 17px; font-weight: bold; color: #F2F2F5;"));
     infoLayout->addWidget(m_name);
     m_byline = new QLabel(info);
-    m_byline->setStyleSheet("color: #9FA8B8; font-size: 12px;");
+    m_byline->setStyleSheet(UiScale::css("color: #9FA8B8; font-size: 12px;"));
     infoLayout->addWidget(m_byline);
     m_chips = new QLabel(info);
     m_chips->setTextFormat(Qt::RichText);
     infoLayout->addWidget(m_chips);
     m_description = new QLabel(info);
     m_description->setWordWrap(true);
-    m_description->setStyleSheet("color: #C8C8D0; font-size: 12px;");
+    m_description->setStyleSheet(UiScale::css("color: #C8C8D0; font-size: 12px;"));
     m_description->setTextInteractionFlags(Qt::TextSelectableByMouse);
     infoLayout->addWidget(m_description);
     m_moreButton = new QToolButton(info);
     m_moreButton->setText("Show more");
     m_moreButton->setCheckable(true);
-    m_moreButton->setStyleSheet("QToolButton { color: #00B0FF; border: none; background: transparent; font-size: 11px; }");
+    m_moreButton->setStyleSheet(UiScale::css("QToolButton { color: #00B0FF; border: none; background: transparent; font-size: 11px; }"));
     connect(m_moreButton, &QToolButton::toggled, this, [this]() { showDetails(m_detailsIndex); });
     infoLayout->addWidget(m_moreButton, 0, Qt::AlignLeft);
     m_facts = new QLabel(info);
     m_facts->setTextFormat(Qt::RichText);
-    m_facts->setStyleSheet("color: #B8B8C4; font-size: 12px;");
+    m_facts->setStyleSheet(UiScale::css("color: #B8B8C4; font-size: 12px;"));
     infoLayout->addWidget(m_facts);
     m_tags = new QLabel(info);
     m_tags->setWordWrap(true);
@@ -459,12 +460,12 @@ PluginBrowserDialog::PluginBrowserDialog(const std::vector<PluginEntry>& plugins
     m_detailsToggle = new QToolButton(info);
     m_detailsToggle->setText(QString::fromUtf8("▸ Technical details"));
     m_detailsToggle->setCheckable(true);
-    m_detailsToggle->setStyleSheet("QToolButton { color: #8A8A96; border: none; background: transparent; font-size: 11px; }");
+    m_detailsToggle->setStyleSheet(UiScale::css("QToolButton { color: #8A8A96; border: none; background: transparent; font-size: 11px; }"));
     infoLayout->addWidget(m_detailsToggle, 0, Qt::AlignLeft);
     m_technical = new QLabel(info);
     m_technical->setWordWrap(true);
     m_technical->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    m_technical->setStyleSheet("color: #7E7E8A; font-size: 11px;");
+    m_technical->setStyleSheet(UiScale::css("color: #7E7E8A; font-size: 11px;"));
     m_technical->setVisible(false);
     connect(m_detailsToggle, &QToolButton::toggled, this, [this](bool on) {
         m_technical->setVisible(on);
@@ -479,8 +480,8 @@ PluginBrowserDialog::PluginBrowserDialog(const std::vector<PluginEntry>& plugins
     m_addButton->setObjectName("addButton");
     m_addButton->setDefault(true);
     // Set on the button itself so the app-wide button style can't override it.
-    m_addButton->setStyleSheet(BrowserStyle::kPrimaryButton);
-    m_favoriteButton->setStyleSheet(BrowserStyle::kSecondaryButton);
+    m_addButton->setStyleSheet(UiScale::css(BrowserStyle::kPrimaryButton));
+    m_favoriteButton->setStyleSheet(UiScale::css(BrowserStyle::kSecondaryButton));
     connect(m_addButton, &QPushButton::clicked, this, &PluginBrowserDialog::accept);
     buttons->addWidget(m_favoriteButton);
     buttons->addStretch();
@@ -675,22 +676,22 @@ void PluginBrowserDialog::showFullPreview() {
     if (full.isNull()) return;
     if (!m_fullPreview) {
         m_fullPreview = new QWidget(this);
-        m_fullPreview->setStyleSheet("background: rgba(8, 8, 10, 235);");
+        m_fullPreview->setStyleSheet(UiScale::css("background: rgba(8, 8, 10, 235);"));
         auto* layout = new QVBoxLayout(m_fullPreview);
         layout->setContentsMargins(24, 20, 24, 20);
         layout->setSpacing(10);
         auto* title = new QLabel(m_fullPreview);
         title->setObjectName("fullPreviewTitle");
         title->setAlignment(Qt::AlignCenter);
-        title->setStyleSheet("color: #EDEDF2; font-size: 14px; font-weight: bold; background: transparent;");
+        title->setStyleSheet(UiScale::css("color: #EDEDF2; font-size: 14px; font-weight: bold; background: transparent;"));
         layout->addWidget(title);
         m_fullPreviewImage = new QLabel(m_fullPreview);
         m_fullPreviewImage->setAlignment(Qt::AlignCenter);
-        m_fullPreviewImage->setStyleSheet("background: transparent;");
+        m_fullPreviewImage->setStyleSheet(UiScale::css("background: transparent;"));
         layout->addWidget(m_fullPreviewImage, 1);
         auto* hint = new QLabel("The plugin's own window. Click anywhere to close.", m_fullPreview);
         hint->setAlignment(Qt::AlignCenter);
-        hint->setStyleSheet("color: #8A8A96; font-size: 11px; background: transparent;");
+        hint->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 11px; background: transparent;"));
         layout->addWidget(hint);
         m_fullPreview->setFocusPolicy(Qt::StrongFocus);
         m_fullPreview->installEventFilter(this);

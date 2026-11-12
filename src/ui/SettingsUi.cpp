@@ -1,4 +1,5 @@
 #include "SettingsUi.h"
+#include "UiScale.h"
 
 #include <QFormLayout>
 #include <QPainter>
@@ -31,10 +32,10 @@ void Group::setHelp(const QString& help) {
         m_info->setCursor(Qt::WhatsThisCursor);
         m_info->setFocusPolicy(Qt::NoFocus);
         m_info->setFixedSize(18, 18);
-        m_info->setStyleSheet(
+        m_info->setStyleSheet(UiScale::css(
             "QToolButton { color: #8A93A6; border: 1px solid #3A3F4B; border-radius: 9px;"
             " background: transparent; font-size: 11px; font-weight: bold; }"
-            "QToolButton:hover { color: #E6EAF2; border-color: #00B0FF; }");
+            "QToolButton:hover { color: #E6EAF2; border-color: #00B0FF; }"));
         connect(m_info, &QToolButton::clicked, this, [this]() {
             // A tooltip is enough: it reads like a footnote and goes away by itself.
             QToolTip::showText(m_info->mapToGlobal(QPoint(m_info->width(), m_info->height())),
@@ -123,13 +124,13 @@ QFormLayout* form(QWidget* parent) {
 QLabel* hint(const QString& text, QWidget* parent) {
     auto* label = new QLabel(text, parent);
     label->setWordWrap(true);
-    label->setStyleSheet(kHintCss);
+    label->setStyleSheet(UiScale::css(kHintCss));
     return label;
 }
 
 QLabel* subheading(const QString& text, QWidget* parent) {
     auto* label = new QLabel(text.toUpper(), parent);
-    label->setStyleSheet("color: #7F8798; font-size: 10px; font-weight: bold; letter-spacing: 1px;");
+    label->setStyleSheet(UiScale::css("color: #7F8798; font-size: 10px; font-weight: bold; letter-spacing: 1px;"));
     return label;
 }
 

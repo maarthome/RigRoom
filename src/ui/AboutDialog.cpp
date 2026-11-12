@@ -1,4 +1,5 @@
 #include "AboutDialog.h"
+#include "UiScale.h"
 #include "Version.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -19,10 +20,10 @@ void AboutWidget::setupUI() {
 
     auto* scrollArea = new QScrollArea(this);
     scrollArea->setWidgetResizable(true);
-    scrollArea->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+    scrollArea->setStyleSheet(UiScale::css("QScrollArea { border: none; background: transparent; }"));
 
     auto* container = new QWidget();
-    container->setStyleSheet("background: transparent; color: #e0e6ed; font-family: 'Segoe UI', Ubuntu, sans-serif;");
+    container->setStyleSheet(UiScale::css("background: transparent; color: #e0e6ed; font-family: 'Segoe UI', Ubuntu, sans-serif;"));
     auto* layout = new QVBoxLayout(container);
     layout->setContentsMargins(18, 16, 18, 16);
     layout->setSpacing(14);
@@ -39,16 +40,16 @@ void AboutWidget::setupUI() {
     
     auto* nameVerLayout = new QHBoxLayout();
     auto* titleLabel = new QLabel("RigRoom", container);
-    titleLabel->setStyleSheet("font-size: 19px; font-weight: 800; color: #ffffff;");
+    titleLabel->setStyleSheet(UiScale::css("font-size: 19px; font-weight: 800; color: #ffffff;"));
     auto* verLabel = new QLabel(QString("v") + RIGROOM_VERSION_STRING, container);
-    verLabel->setStyleSheet("font-size: 10px; font-weight: bold; color: #00e5ff; background-color: rgba(0, 229, 255, 0.12); padding: 2px 7px; border-radius: 4px;");
+    verLabel->setStyleSheet(UiScale::css("font-size: 10px; font-weight: bold; color: #00e5ff; background-color: rgba(0, 229, 255, 0.12); padding: 2px 7px; border-radius: 4px;"));
     nameVerLayout->addWidget(titleLabel);
     nameVerLayout->addWidget(verLabel);
     nameVerLayout->addStretch();
     titleLayout->addLayout(nameVerLayout);
 
     auto* tagline = new QLabel("High-Performance Open-Source Guitar Multieffects & Audio Plugin Host", container);
-    tagline->setStyleSheet("font-size: 12px; color: #8a94a6;");
+    tagline->setStyleSheet(UiScale::css("font-size: 12px; color: #8a94a6;"));
     titleLayout->addWidget(tagline);
 
     auto* repoLabel = new QLabel(
@@ -56,7 +57,7 @@ void AboutWidget::setupUI() {
         container
     );
     repoLabel->setOpenExternalLinks(true);
-    repoLabel->setStyleSheet("font-size: 11px; margin-top: 2px;");
+    repoLabel->setStyleSheet(UiScale::css("font-size: 11px; margin-top: 2px;"));
     titleLayout->addWidget(repoLabel);
 
     headerLayout->addLayout(titleLayout);
@@ -66,12 +67,12 @@ void AboutWidget::setupUI() {
     // Divider 1
     auto* div1 = new QFrame(container);
     div1->setFrameShape(QFrame::HLine);
-    div1->setStyleSheet("color: #242834; background-color: #242834; border: none; height: 1px;");
+    div1->setStyleSheet(UiScale::css("color: #242834; background-color: #242834; border: none; height: 1px;"));
     layout->addWidget(div1);
 
     // 2. Core Features Section (Flat bullet points)
     auto* featHeader = new QLabel("<b>Core Engine Features</b>", container);
-    featHeader->setStyleSheet("font-size: 13px; color: #ffffff;");
+    featHeader->setStyleSheet(UiScale::css("font-size: 13px; color: #ffffff;"));
     layout->addWidget(featHeader);
 
     auto* featList = new QLabel(
@@ -83,18 +84,18 @@ void AboutWidget::setupUI() {
         container
     );
     featList->setWordWrap(true);
-    featList->setStyleSheet("color: #b0b8c8; font-size: 12px; line-height: 1.5; padding-left: 4px;");
+    featList->setStyleSheet(UiScale::css("color: #b0b8c8; font-size: 12px; line-height: 1.5; padding-left: 4px;"));
     layout->addWidget(featList);
 
     // Divider 2
     auto* div2 = new QFrame(container);
     div2->setFrameShape(QFrame::HLine);
-    div2->setStyleSheet("color: #242834; background-color: #242834; border: none; height: 1px;");
+    div2->setStyleSheet(UiScale::css("color: #242834; background-color: #242834; border: none; height: 1px;"));
     layout->addWidget(div2);
 
     // 3. Open Source Components & Trademarks
     auto* creditsHeader = new QLabel("<b>Open Source Credits & Trademarks</b>", container);
-    creditsHeader->setStyleSheet("font-size: 13px; color: #ffffff;");
+    creditsHeader->setStyleSheet(UiScale::css("font-size: 13px; color: #ffffff;"));
     layout->addWidget(creditsHeader);
 
     auto* creditsText = new QLabel(
@@ -107,7 +108,7 @@ void AboutWidget::setupUI() {
     );
     creditsText->setOpenExternalLinks(true);
     creditsText->setWordWrap(true);
-    creditsText->setStyleSheet("color: #9aa4b6; font-size: 11px; line-height: 1.5; padding-left: 4px;");
+    creditsText->setStyleSheet(UiScale::css("color: #9aa4b6; font-size: 11px; line-height: 1.5; padding-left: 4px;"));
     layout->addWidget(creditsText);
 
     auto* tmNotice = new QLabel(
@@ -115,7 +116,7 @@ void AboutWidget::setupUI() {
         container
     );
     tmNotice->setWordWrap(true);
-    tmNotice->setStyleSheet("color: #727c90; font-size: 10px; font-style: italic; padding-top: 4px;");
+    tmNotice->setStyleSheet(UiScale::css("color: #727c90; font-size: 10px; font-style: italic; padding-top: 4px;"));
     layout->addWidget(tmNotice);
 
     layout->addStretch();
@@ -140,7 +141,7 @@ AboutDialog::AboutDialog(QWidget* parent)
     auto* bottomLayout = new QHBoxLayout();
     bottomLayout->addStretch();
     auto* closeBtn = new QPushButton("Close", this);
-    closeBtn->setStyleSheet(R"(
+    closeBtn->setStyleSheet(UiScale::css(R"(
         QPushButton {
             background-color: #00b0ff;
             color: #ffffff;
@@ -153,7 +154,7 @@ AboutDialog::AboutDialog(QWidget* parent)
         QPushButton:hover {
             background-color: #00c4ff;
         }
-    )");
+    )"));
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
     bottomLayout->addWidget(closeBtn);
 

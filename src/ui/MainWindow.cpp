@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "UiScale.h"
 #include "PluginLoadingOverlay.h"
 #include "CredentialStore.h"
 #include "../audio/LV2Host.h"
@@ -188,20 +189,20 @@ public:
         : QFrame(parent, Qt::Popup | Qt::FramelessWindowHint), m_changed(std::move(changed)) {
         setObjectName("gainPopover");
         setFixedWidth(330);
-        setStyleSheet(
+        setStyleSheet(UiScale::css(
             "QFrame#gainPopover { background: #2b2b31; border: 1px solid #41414a; border-radius: 10px; }"
             "QLabel { background: transparent; border: none; }"
             "QDoubleSpinBox { background: #202025; border: 1px solid #464650; border-radius: 4px; padding: 4px; }"
             "QProgressBar { background: #17171b; border: none; border-radius: 3px; }"
             "QProgressBar::chunk { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00d084, stop:0.8 #ffd54a, stop:1 #ff5252); }"
-        );
+        ));
 
         auto* layout = new QVBoxLayout(this);
         layout->setContentsMargins(14, 12, 14, 12);
         layout->setSpacing(7);
         auto* heading = new QHBoxLayout();
         auto* label = new QLabel(title, this);
-        label->setStyleSheet("font-weight: bold; color: #f0f0f3;");
+        label->setStyleSheet(UiScale::css("font-weight: bold; color: #f0f0f3;"));
         m_spin = new ResetGainSpinBox(this);
         m_spin->setRange(-40.0, 24.0);
         m_spin->setDecimals(1);
@@ -225,7 +226,7 @@ public:
         auto* minimum = new QLabel("-40 dB", this);
         auto* resetHint = new QLabel("Double-click: 0 dB", this);
         auto* maximum = new QLabel("+24 dB", this);
-        for (auto* item : {minimum, resetHint, maximum}) item->setStyleSheet("color: #92929c; font-size: 10px;");
+        for (auto* item : {minimum, resetHint, maximum}) item->setStyleSheet(UiScale::css("color: #92929c; font-size: 10px;"));
         scale->addWidget(minimum);
         scale->addStretch();
         scale->addWidget(resetHint);
@@ -555,7 +556,7 @@ MainWindow::~MainWindow() {
 
 void MainWindow::setupUI() {
     // Apply Dark Modern Style
-    setStyleSheet(R"(
+    setStyleSheet(UiScale::css(R"(
         QMainWindow {
             background-color: #121212;
         }
@@ -583,6 +584,16 @@ void MainWindow::setupUI() {
         QTreeWidget::item:selected, QListWidget::item:selected {
             background-color: #007ACC;
             color: white;
+        }
+        /* Drop-down lists and item views take the palette's light base colour
+           unless told otherwise, so combo popups came up almost white. */
+        QComboBox QAbstractItemView, QAbstractItemView {
+            background-color: #1E1E1E;
+            color: #E0E0E0;
+            border: 1px solid #333333;
+            outline: none;
+            selection-background-color: #007ACC;
+            selection-color: white;
         }
         QPushButton {
             background-color: #00897B;
@@ -635,7 +646,7 @@ void MainWindow::setupUI() {
             background-color: #007ACC;
             color: white;
         }
-    )");
+    )"));
 
     QWidget* central = new QWidget(this);
     setCentralWidget(central);
@@ -651,16 +662,16 @@ void MainWindow::setupUI() {
     topBar->setContentsMargins(0, 0, 0, 0);
     
     QLabel* logo = new QLabel("RIGROOM", this);
-    logo->setStyleSheet("font-size: 20px; font-weight: bold; color: #00B0FF; letter-spacing: 2px;");
+    logo->setStyleSheet(UiScale::css("font-size: 20px; font-weight: bold; color: #00B0FF; letter-spacing: 2px;"));
     topBar->addWidget(logo);
     topBar->addSpacing(18);
     auto* pluginsBtn = new QPushButton("＋  Plugins", this);
     pluginsBtn->setToolTip("Open the plugin browser (Ctrl+B). Keep it open and drag plugins onto the signal chain, "
                            "or double-click one to add it at the end. The + buttons on the board still add one at a time.");
     pluginsBtn->setCursor(Qt::PointingHandCursor);
-    pluginsBtn->setStyleSheet(
+    pluginsBtn->setStyleSheet(UiScale::css(
         "QPushButton { background-color: #1D5B79; color: white; font-weight: bold; border-radius: 4px; padding: 6px 14px; font-size: 12px; border: none; }"
-        "QPushButton:hover { background-color: #23739A; }");
+        "QPushButton:hover { background-color: #23739A; }"));
     connect(pluginsBtn, &QPushButton::clicked, this, &MainWindow::togglePluginLibrary);
     topBar->addWidget(pluginsBtn);
     auto* pluginsSc = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_B), this);
@@ -671,17 +682,17 @@ void MainWindow::setupUI() {
     m_savePresetButton = new QPushButton("Save", this);
     m_savePresetButton->setToolTip("Save current preset (Ctrl+S)");
     m_savePresetButton->setCursor(Qt::PointingHandCursor);
-    m_savePresetButton->setStyleSheet(
+    m_savePresetButton->setStyleSheet(UiScale::css(
         "QPushButton { background-color: #00897B; color: white; font-weight: bold; border-radius: 4px; padding: 5px 10px; font-size: 11px; border: none; }"
         "QPushButton:hover { background-color: #009688; }"
-    );
+    ));
     connect(m_savePresetButton, &QPushButton::clicked, this, &MainWindow::onSavePreset);
 
     m_presetMenu = new QMenu(this);
-    m_presetMenu->setStyleSheet(
+    m_presetMenu->setStyleSheet(UiScale::css(
         "QMenu { background-color: #1E1E22; color: #E0E0E0; border: 1px solid #333333; }"
         "QMenu::item:selected { background-color: #007ACC; color: white; }"
-        "QMenu::item:disabled { color: #555555; }");
+        "QMenu::item:disabled { color: #555555; }"));
     // Save Copy To keeps the loaded preset as it was and puts the board, edits
     // included, into a free slot. Duplicate copies the saved version.
     QAction* saveAsAct = m_presetMenu->addAction("Save Copy To...");
@@ -725,7 +736,7 @@ void MainWindow::setupUI() {
     columnsLayout->setSpacing(4);
     QLabel* slotTitleLabel = new QLabel("Columns", m_columnsGroup);
     slotTitleLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
-    slotTitleLabel->setStyleSheet("color: #AAAAAA; font-weight: bold; font-size: 10px;");
+    slotTitleLabel->setStyleSheet(UiScale::css("color: #AAAAAA; font-weight: bold; font-size: 10px;"));
     columnsLayout->addWidget(slotTitleLabel);
 
     m_slotMinusBtn = new QToolButton(m_columnsGroup);
@@ -733,18 +744,18 @@ void MainWindow::setupUI() {
     m_slotMinusBtn->setToolTip("Remove empty last column (Ctrl+-)");
     m_slotMinusBtn->setFixedSize(22, 22);
     m_slotMinusBtn->setCursor(Qt::PointingHandCursor);
-    m_slotMinusBtn->setStyleSheet(
+    m_slotMinusBtn->setStyleSheet(UiScale::css(
         "QToolButton { background-color: #262830; color: #E0E0E0; font-size: 10px; border: 1px solid #363842; border-radius: 4px; }"
         "QToolButton:hover { background-color: #363844; color: white; border-color: #00B0FF; }"
         "QToolButton:disabled { color: #555555; background-color: #1A1A1C; border-color: #252528; }"
-    );
+    ));
     connect(m_slotMinusBtn, &QToolButton::clicked, this, &MainWindow::onSlotMinusClicked);
     columnsLayout->addWidget(m_slotMinusBtn);
 
     m_slotCountLabel = new QLabel("6", m_columnsGroup);
     m_slotCountLabel->setAlignment(Qt::AlignCenter);
     m_slotCountLabel->setMinimumWidth(m_slotCountLabel->fontMetrics().horizontalAdvance("12") + 8);
-    m_slotCountLabel->setStyleSheet("font-weight: bold; color: #00B0FF; padding: 0 2px; font-size: 11px;");
+    m_slotCountLabel->setStyleSheet(UiScale::css("font-weight: bold; color: #00B0FF; padding: 0 2px; font-size: 11px;"));
     columnsLayout->addWidget(m_slotCountLabel);
 
     m_slotPlusBtn = new QToolButton(m_columnsGroup);
@@ -802,11 +813,11 @@ void MainWindow::setupUI() {
     dialogLayout->setSpacing(12);
 
     QTabWidget* mainSettingsTab = new QTabWidget(m_settingsDialog);
-    mainSettingsTab->setStyleSheet(
+    mainSettingsTab->setStyleSheet(UiScale::css(
         "QTabWidget::pane { border: 1px solid #282832; background: #121216; border-radius: 6px; padding: 6px; }"
         "QTabBar::tab { background: #1a1a20; color: #A0A0B0; padding: 8px 16px; margin-right: 4px; border-top-left-radius: 6px; border-top-right-radius: 6px; font-weight: bold; font-size: 12px; }"
         "QTabBar::tab:selected { background: #00B0FF; color: white; }"
-    );
+    ));
 
     // TAB 1: Audio Configuration
     QWidget* audioTab = new QWidget();
@@ -818,7 +829,7 @@ void MainWindow::setupUI() {
         "A smaller block size means less delay but more work for the processor; if you hear clicks or "
         "the xrun count climbs, choose a larger one.<br><br>"
         "Mono input takes the left port only, which suits a single guitar.");
-    ioBox->setStyleSheet(SettingsUi::kGroupStyle);
+    ioBox->setStyleSheet(UiScale::css(SettingsUi::kGroupStyle));
     QFormLayout* formLayout = SettingsUi::form(ioBox);
     
     m_hwInputModeCombo = new QComboBox(m_settingsDialog);
@@ -868,6 +879,24 @@ void MainWindow::setupUI() {
     formLayout->addRow("Buffer Size:", m_bufferSizeCombo);
     formLayout->addRow("Default Columns:", defaultTrackSlotsCombo);
 
+    // Text size scales the interface's fonts. Stylesheets are built at startup,
+    // so the choice is saved now and applied the next time RigRoom starts.
+    QComboBox* textSizeCombo = new QComboBox(m_settingsDialog);
+    for (int percent : {85, 100, 115, 130, 150, 175, 200}) {
+        textSizeCombo->addItem(QString("%1%").arg(percent), percent);
+    }
+    if (textSizeCombo->findData(UiScale::percentSetting()) < 0) {
+        textSizeCombo->addItem(QString("%1%").arg(UiScale::percentSetting()), UiScale::percentSetting());
+    }
+    textSizeCombo->setCurrentIndex(textSizeCombo->findData(UiScale::percentSetting()));
+    connect(textSizeCombo, &QComboBox::currentIndexChanged, this, [textSizeCombo](int index) {
+        UiScale::setPercentSetting(textSizeCombo->itemData(index).toInt());
+    });
+    formLayout->addRow("Text Size:", textSizeCombo);
+    QLabel* textSizeHint = new QLabel("Text size takes effect the next time RigRoom starts.", m_settingsDialog);
+    textSizeHint->setStyleSheet(UiScale::css(SettingsUi::kHintCss));
+    formLayout->addRow(textSizeHint);
+
     // Preset library: banks of 4 (A-D). Presets stay pinned to their bank and
     // letter; the bank count can't drop below the highest bank in use.
     QSpinBox* numBanksSpin = new QSpinBox(m_settingsDialog);
@@ -908,16 +937,16 @@ void MainWindow::setupUI() {
         "Folders to search besides the standard ones for each format. Add the folder that holds the "
         "bundles, not a single plugin.<br><br>"
         "Changes take effect on the next scan: use <b>Rescan Plugins Now</b> below.");
-    pathsBox->setStyleSheet(SettingsUi::kGroupStyle);
+    pathsBox->setStyleSheet(UiScale::css(SettingsUi::kGroupStyle));
     QVBoxLayout* pathsLayout = new QVBoxLayout(pathsBox);
     pathsLayout->setSpacing(SettingsUi::kGroupSpacing);
 
     QTabWidget* formatPathsTab = new QTabWidget(pathsBox);
-    formatPathsTab->setStyleSheet(
+    formatPathsTab->setStyleSheet(UiScale::css(
         "QTabWidget::pane { border: 1px solid #282832; background: #141418; border-radius: 4px; }"
         "QTabBar::tab { background: #222228; color: #A0A0B0; padding: 6px 14px; margin-right: 2px; border-top-left-radius: 4px; border-top-right-radius: 4px; font-weight: bold; font-size: 11px; }"
         "QTabBar::tab:selected { background: #00B0FF; color: white; }"
-    );
+    ));
 
     auto createPathPage = [this](QStringList& pathList) -> QWidget* {
         QWidget* page = new QWidget();
@@ -927,7 +956,7 @@ void MainWindow::setupUI() {
         QListWidget* listWidget = new QListWidget(page);
         listWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         listWidget->setMinimumHeight(110);
-        listWidget->setStyleSheet("QListWidget { background: #1c1c22; border: 1px solid #2d2d38; border-radius: 4px; color: #ECECF0; font-size: 11px; }");
+        listWidget->setStyleSheet(UiScale::css("QListWidget { background: #1c1c22; border: 1px solid #2d2d38; border-radius: 4px; color: #ECECF0; font-size: 11px; }"));
         for (const auto& path : pathList) {
             listWidget->addItem(path);
         }
@@ -937,15 +966,15 @@ void MainWindow::setupUI() {
 
         QPushButton* addBtn = new QPushButton("Add Folder", page);
         addBtn->setIcon(style()->standardIcon(QStyle::SP_DirOpenIcon));
-        addBtn->setStyleSheet("QPushButton { background: transparent; color: #6FBEEA; border: 1px solid #2F3A46;"
+        addBtn->setStyleSheet(UiScale::css("QPushButton { background: transparent; color: #6FBEEA; border: 1px solid #2F3A46;"
                               " border-radius: 4px; padding: 6px 12px; font-size: 11px; }"
-                              "QPushButton:hover { background: #1D2733; border-color: #6FBEEA; }");
+                              "QPushButton:hover { background: #1D2733; border-color: #6FBEEA; }"));
         
         QPushButton* removeBtn = new QPushButton("Remove", page);
         removeBtn->setIcon(style()->standardIcon(QStyle::SP_TrashIcon));
-        removeBtn->setStyleSheet("QPushButton { background: transparent; color: #D8888E; border: 1px solid #3A2A2E;"
+        removeBtn->setStyleSheet(UiScale::css("QPushButton { background: transparent; color: #D8888E; border: 1px solid #3A2A2E;"
                                  " border-radius: 4px; padding: 6px 12px; font-size: 11px; }"
-                                 "QPushButton:hover { background: #2E1F22; border-color: #D8888E; }");
+                                 "QPushButton:hover { background: #2E1F22; border-color: #D8888E; }"));
 
         btnCol->addWidget(addBtn);
         btnCol->addWidget(removeBtn);
@@ -988,7 +1017,7 @@ void MainWindow::setupUI() {
     // and keeps a picture of it for the browser. Experimental and optional.
     auto* previewBox = new SettingsUi::Group("Plugin Pictures (experimental)", pluginsTab,
                                              PluginPreviewService::requirementsText());
-    previewBox->setStyleSheet(SettingsUi::kGroupStyle);
+    previewBox->setStyleSheet(UiScale::css(SettingsUi::kGroupStyle));
     QVBoxLayout* previewLayout = new QVBoxLayout(previewBox);
     previewLayout->setSpacing(SettingsUi::kGroupSpacing);
     const auto previewEnv = PluginPreviewService::environment();
@@ -1003,7 +1032,7 @@ void MainWindow::setupUI() {
         previewEnv.available ? QString("This computer: ready (%1).").arg(previewEnv.tool)
                              : QString("This computer: no hidden display found, so pictures cannot be made."),
         previewBox);
-    if (!previewEnv.available) previewEnvLabel->setStyleSheet(SettingsUi::kWarningCss);
+    if (!previewEnv.available) previewEnvLabel->setStyleSheet(UiScale::css(SettingsUi::kWarningCss));
     previewLayout->addWidget(previewEnvLabel);
 
     // One button, and a choice that says exactly what it will work through.
@@ -1023,7 +1052,7 @@ void MainWindow::setupUI() {
 
     m_previewStatusLabel = new QLabel(previewBox);
     m_previewStatusLabel->setWordWrap(true);
-    m_previewStatusLabel->setStyleSheet(SettingsUi::kHintCss);
+    m_previewStatusLabel->setStyleSheet(UiScale::css(SettingsUi::kHintCss));
     previewLayout->addWidget(m_previewStatusLabel);
     pluginsLayout->addWidget(previewBox);
 
@@ -1054,10 +1083,10 @@ void MainWindow::setupUI() {
     QPushButton* rescanBtn = new QPushButton("Rescan Plugins Now", pluginsTab);
     rescanBtn->setIcon(style()->standardIcon(QStyle::SP_BrowserReload));
     rescanBtn->setCursor(Qt::PointingHandCursor);
-    rescanBtn->setStyleSheet(
+    rescanBtn->setStyleSheet(UiScale::css(
         "QPushButton { background: #00B0FF; color: white; font-weight: bold; border-radius: 4px; padding: 8px 16px; font-size: 12px; }"
         "QPushButton:hover { background: #0091EA; }"
-    );
+    ));
     rescanLayout->addWidget(rescanBtn);
     rescanLayout->addStretch();
     pluginsLayout->addLayout(rescanLayout);
@@ -1129,12 +1158,12 @@ void MainWindow::setupUI() {
         "a block.<br><br>"
         "Make a key on your TONE3000 account page, paste it here and save. It is kept in RigRoom's "
         "own settings and sent only to tone3000.com.");
-    toneBox->setStyleSheet(SettingsUi::kGroupStyle);
+    toneBox->setStyleSheet(UiScale::css(SettingsUi::kGroupStyle));
     QVBoxLayout* toneLayout = new QVBoxLayout(toneBox);
     toneLayout->setSpacing(SettingsUi::kGroupSpacing);
 
     QLabel* toneStatusLabel = new QLabel(toneBox);
-    toneStatusLabel->setStyleSheet("font-size: 11px; font-weight: bold; border: none; background: transparent;");
+    toneStatusLabel->setStyleSheet(UiScale::css("font-size: 11px; font-weight: bold; border: none; background: transparent;"));
 
     QHBoxLayout* keyInputLayout = new QHBoxLayout();
     keyInputLayout->setSpacing(6);
@@ -1142,17 +1171,17 @@ void MainWindow::setupUI() {
     QLineEdit* apiKeyEdit = new QLineEdit(m_settingsDialog);
     apiKeyEdit->setPlaceholderText("Paste t3k_cs_... Secret Key or Legacy API Key");
     apiKeyEdit->setEchoMode(QLineEdit::Password);
-    apiKeyEdit->setStyleSheet("QLineEdit { background: #222228; border: 1px solid #363642; border-radius: 4px; color: #ECECF0; padding: 6px; font-size: 11px; }");
+    apiKeyEdit->setStyleSheet(UiScale::css("QLineEdit { background: #222228; border: 1px solid #363642; border-radius: 4px; color: #ECECF0; padding: 6px; font-size: 11px; }"));
 
     QToolButton* toggleEyeBtn = new QToolButton(m_settingsDialog);
     toggleEyeBtn->setText("Hide");
     toggleEyeBtn->setToolTip("Show / Hide API Key");
     toggleEyeBtn->setFixedSize(28, 28);
     toggleEyeBtn->setCursor(Qt::PointingHandCursor);
-    toggleEyeBtn->setStyleSheet(
+    toggleEyeBtn->setStyleSheet(UiScale::css(
         "QToolButton { background-color: #282832; color: #E0E0E0; border: 1px solid #383848; border-radius: 4px; font-size: 12px; }"
         "QToolButton:hover { background-color: #343442; color: white; border-color: #00B0FF; }"
-    );
+    ));
     connect(toggleEyeBtn, &QToolButton::clicked, apiKeyEdit, [apiKeyEdit, toggleEyeBtn]() {
         if (apiKeyEdit->echoMode() == QLineEdit::Password) {
             apiKeyEdit->setEchoMode(QLineEdit::Normal);
@@ -1167,11 +1196,11 @@ void MainWindow::setupUI() {
     clearKeyBtn->setIcon(style()->standardIcon(QStyle::SP_TrashIcon));
     clearKeyBtn->setToolTip("Remove stored API key");
     clearKeyBtn->setCursor(Qt::PointingHandCursor);
-    clearKeyBtn->setStyleSheet(
+    clearKeyBtn->setStyleSheet(UiScale::css(
         "QPushButton { background: #352528; color: #FF6B6B; font-weight: bold; border: 1px solid #4a3034; border-radius: 4px; padding: 5px 10px; font-size: 11px; }"
         "QPushButton:hover { background: #4a2d32; color: #FF8787; border-color: #FF5252; }"
         "QPushButton:disabled { color: #555555; background: #1c1c20; border-color: #28282c; }"
-    );
+    ));
 
     keyInputLayout->addWidget(apiKeyEdit, 1);
     keyInputLayout->addWidget(toggleEyeBtn);
@@ -1181,11 +1210,11 @@ void MainWindow::setupUI() {
         QString text = apiKeyEdit->text().trimmed();
         if (text.isEmpty()) {
             toneStatusLabel->setText("Secret Key Required: Enter your Secret Key (t3k_cs_...) to enable online searches");
-            toneStatusLabel->setStyleSheet(QString(SettingsUi::kWarningCss) + "font-weight: bold; border: none;");
+            toneStatusLabel->setStyleSheet(UiScale::css(QString(SettingsUi::kWarningCss) + "font-weight: bold; border: none;"));
             clearKeyBtn->setEnabled(false);
         } else {
             toneStatusLabel->setText("Mode: Secret Key Configured — Full TONE3000 API Access");
-            toneStatusLabel->setStyleSheet(QString(SettingsUi::kOkCss) + "font-weight: bold; border: none;");
+            toneStatusLabel->setStyleSheet(UiScale::css(QString(SettingsUi::kOkCss) + "font-weight: bold; border: none;"));
             clearKeyBtn->setEnabled(true);
         }
     };
@@ -1216,7 +1245,7 @@ void MainWindow::setupUI() {
         "<b>Which key is needed?</b> Copy your <b>Secret Key</b> (starts with <code>t3k_cs_...</code>) from your TONE3000 account.<br>"
         "<span style='color:#a0a4b8;'>Path: <b>tone3000.com</b> → <b>Settings</b> → <b>API & Developer Keys</b> → <b>Secret Key</b></span><br>"
         "<a href='https://tone3000.com/settings' style='color:#00B0FF; font-weight:bold;'>Open tone3000.com/settings in browser</a>", toneBox);
-    helpLabel->setStyleSheet("font-size: 11px; color: #CCCCCC; border: none; padding-top: 4px;");
+    helpLabel->setStyleSheet(UiScale::css("font-size: 11px; color: #CCCCCC; border: none; padding-top: 4px;"));
     helpLabel->setOpenExternalLinks(true);
 
     toneLayout->addWidget(toneStatusLabel);
@@ -1252,7 +1281,7 @@ void MainWindow::setupUI() {
     m_inputGainLabel = new QToolButton(this);
     m_inputGainLabel->setText(QString("In  %1 dB").arg(m_engine.getInputGainDB(), 0, 'f', 1));
     m_inputGainLabel->setToolTip("Open input gain fader");
-    m_inputGainLabel->setStyleSheet("QToolButton { background: transparent; border: none; color: #b8b8c0; padding: 4px; } QToolButton:hover { color: white; background: #29292f; border-radius: 4px; }");
+    m_inputGainLabel->setStyleSheet(UiScale::css("QToolButton { background: transparent; border: none; color: #b8b8c0; padding: 4px; } QToolButton:hover { color: white; background: #29292f; border-radius: 4px; }"));
     topBar->addWidget(m_inputGainLabel);
 
     m_inputMeter = new QProgressBar(this);
@@ -1261,7 +1290,7 @@ void MainWindow::setupUI() {
     m_inputMeter->setTextVisible(false);
     m_inputMeter->setFixedHeight(10);
     m_inputMeter->setFixedWidth(60);
-    m_inputMeter->setStyleSheet(meterStyle);
+    m_inputMeter->setStyleSheet(UiScale::css(meterStyle));
     topBar->addWidget(m_inputMeter);
 
     auto* inputPopover = new GainPopover(
@@ -1292,7 +1321,7 @@ void MainWindow::setupUI() {
     m_outputMeter->setTextVisible(false);
     m_outputMeter->setFixedHeight(10);
     m_outputMeter->setFixedWidth(60);
-    m_outputMeter->setStyleSheet(meterStyle);
+    m_outputMeter->setStyleSheet(UiScale::css(meterStyle));
     topBar->addWidget(m_outputMeter);
 
     auto* outputPopover = new GainPopover(
@@ -1325,16 +1354,16 @@ void MainWindow::setupUI() {
     // switches show, a switch loads one, and scenes vary the loaded preset.
     auto* panel = new QFrame(central);
     panel->setObjectName("presetPanel");
-    panel->setStyleSheet(
+    panel->setStyleSheet(UiScale::css(
         "QFrame#presetPanel { background-color: #17171A; border: 1px solid #2A2A30; border-radius: 8px; }"
-        "QFrame#presetPanel QLabel { background: transparent; border: none; }");
+        "QFrame#presetPanel QLabel { background: transparent; border: none; }"));
     auto* panelLayout = new QHBoxLayout(panel);
     panelLayout->setContentsMargins(10, 6, 10, 8);
     panelLayout->setSpacing(12);
 
     auto makeCaption = [panel](const QString& text) {
         auto* caption = new QLabel(text, panel);
-        caption->setStyleSheet("color: #7A7A86; font-weight: bold; font-size: 9px; letter-spacing: 1px;");
+        caption->setStyleSheet(UiScale::css("color: #7A7A86; font-weight: bold; font-size: 9px; letter-spacing: 1px;"));
         return caption;
     };
     auto makeSection = [panel](QBoxLayout*& body, const QString& caption, auto makeCaptionFn) {
@@ -1351,7 +1380,7 @@ void MainWindow::setupUI() {
     auto makeDivider = [panel]() {
         auto* divider = new QFrame(panel);
         divider->setFrameShape(QFrame::VLine);
-        divider->setStyleSheet("QFrame { color: #2A2A30; }");
+        divider->setStyleSheet(UiScale::css("QFrame { color: #2A2A30; }"));
         return divider;
     };
     const QString smallBtnStyle =
@@ -1366,7 +1395,7 @@ void MainWindow::setupUI() {
     m_bankPrevBtn->setToolTip("Show previous bank (Ctrl+Shift+PageUp). Nothing loads until you pick a preset.");
     m_bankPrevBtn->setFixedSize(22, 44);
     m_bankPrevBtn->setCursor(Qt::PointingHandCursor);
-    m_bankPrevBtn->setStyleSheet(smallBtnStyle);
+    m_bankPrevBtn->setStyleSheet(UiScale::css(smallBtnStyle));
     connect(m_bankPrevBtn, &QToolButton::clicked, this, [this]() { m_rig->stepBank(-1); });
     bankBody->addWidget(m_bankPrevBtn);
 
@@ -1388,7 +1417,7 @@ void MainWindow::setupUI() {
         texts->addWidget(m_bankNameLabel);
         inner->addLayout(texts, 1);
         auto* arrow = new QLabel(QString::fromUtf8("▾"), m_bankLabel);
-        arrow->setStyleSheet("QLabel { color: #8A8A96; font-size: 12px; background: transparent; border: none; }");
+        arrow->setStyleSheet(UiScale::css("QLabel { color: #8A8A96; font-size: 12px; background: transparent; border: none; }"));
         inner->addWidget(arrow);
         for (QLabel* l : {m_bankNumberLabel, m_bankNameLabel, arrow}) {
             l->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -1413,7 +1442,7 @@ void MainWindow::setupUI() {
     m_bankNextBtn->setToolTip("Show next bank (Ctrl+Shift+PageDown). Nothing loads until you pick a preset.");
     m_bankNextBtn->setFixedSize(22, 44);
     m_bankNextBtn->setCursor(Qt::PointingHandCursor);
-    m_bankNextBtn->setStyleSheet(smallBtnStyle);
+    m_bankNextBtn->setStyleSheet(UiScale::css(smallBtnStyle));
     connect(m_bankNextBtn, &QToolButton::clicked, this, [this]() { m_rig->stepBank(1); });
     bankBody->addWidget(m_bankNextBtn);
     panelLayout->addWidget(bankSection);
@@ -1459,9 +1488,9 @@ void MainWindow::setupUI() {
     moreBtn->setToolTip("Save As, Rename, Duplicate, Delete, All banks");
     moreBtn->setFixedSize(32, 44);
     moreBtn->setCursor(Qt::PointingHandCursor);
-    moreBtn->setStyleSheet(
+    moreBtn->setStyleSheet(UiScale::css(
         "QToolButton { background-color: #2A2A30; color: #E0E0E0; font-weight: bold; font-size: 15px; border-radius: 5px; border: 1px solid #35363C; }"
-        "QToolButton:hover { background-color: #3A3A42; }");
+        "QToolButton:hover { background-color: #3A3A42; }"));
     connect(moreBtn, &QToolButton::clicked, this, [this, moreBtn]() {
         m_presetMenu->exec(moreBtn->mapToGlobal(QPoint(0, moreBtn->height())));
     });
@@ -1511,11 +1540,11 @@ void MainWindow::setupUI() {
     // The scroll area owns overflow; inspector content must not resize the workspace splitter.
     m_paramContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Ignored);
     m_paramContainer->setObjectName("inspectorDeck");
-    m_paramContainer->setStyleSheet(
+    m_paramContainer->setStyleSheet(UiScale::css(
         "QWidget#inspectorDeck { background:#18191D; border-top:1px solid #30323A; }"
         "QWidget#inspectorDeck QCheckBox { color:#CDD3DC; spacing:7px; }"
         "QWidget#inspectorDeck QPushButton:focus, QWidget#inspectorDeck QComboBox:focus, QWidget#inspectorDeck QSpinBox:focus { border:1px solid #73C6F1; }"
-    );
+    ));
     
     QVBoxLayout* rightLayout = new QVBoxLayout(m_paramContainer);
     rightLayout->setContentsMargins(12, 10, 12, 10);
@@ -1523,7 +1552,7 @@ void MainWindow::setupUI() {
     
     m_noParamLabel = new QLabel("Select an effect node\nto show parameters", this);
     m_noParamLabel->setAlignment(Qt::AlignCenter);
-    m_noParamLabel->setStyleSheet("color: #666666; font-style: italic;");
+    m_noParamLabel->setStyleSheet(UiScale::css("color: #666666; font-style: italic;"));
     rightLayout->addWidget(m_noParamLabel);
     
     auto* paramScroll = m_paramScroll = new QScrollArea(m_paramContainer);
@@ -1539,7 +1568,7 @@ void MainWindow::setupUI() {
     auto* paramShelf = new QWidget(paramContent);
     paramShelf->setObjectName("paramShelf");
     paramShelf->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    paramShelf->setStyleSheet("QWidget#paramShelf { background: transparent; }");
+    paramShelf->setStyleSheet(UiScale::css("QWidget#paramShelf { background: transparent; }"));
     m_paramLayout = new QVBoxLayout(paramShelf);
     m_paramLayout->setContentsMargins(0, 0, 0, 0);
     m_paramLayout->setSpacing(10);
@@ -1556,12 +1585,12 @@ void MainWindow::setupUI() {
     // --- STATUS BAR ---
     QWidget* statusBarContainer = new QWidget(this);
     statusBarContainer->setFixedHeight(24);
-    statusBarContainer->setStyleSheet("background-color: #18181B; border-top: 1px solid #29292D;");
+    statusBarContainer->setStyleSheet(UiScale::css("background-color: #18181B; border-top: 1px solid #29292D;"));
     QHBoxLayout* statusLayout = new QHBoxLayout(statusBarContainer);
     statusLayout->setContentsMargins(8, 0, 8, 0);
 
     m_statusLabel = new QLabel("Ready | JACK Latency: " + QString::number(currentSize * 1000.0 / m_engine.getSampleRate(), 'f', 2) + " ms", this);
-    m_statusLabel->setStyleSheet("color: #888888; font-size: 11px;");
+    m_statusLabel->setStyleSheet(UiScale::css("color: #888888; font-size: 11px;"));
     statusLayout->addWidget(m_statusLabel);
     statusLayout->addStretch();
 
@@ -1569,9 +1598,9 @@ void MainWindow::setupUI() {
     m_midiIndicator->setText(QString::fromUtf8("● MIDI"));
     m_midiIndicator->setCursor(Qt::PointingHandCursor);
     m_midiIndicator->setToolTip("MIDI input activity. Click for MIDI settings.");
-    m_midiIndicator->setStyleSheet(
+    m_midiIndicator->setStyleSheet(UiScale::css(
         "QToolButton { background-color: #263238; color: #546E7A; font-size: 11px; border-radius: 4px; padding: 2px 8px; border: none; }"
-        "QToolButton:hover { background-color: #37474F; }");
+        "QToolButton:hover { background-color: #37474F; }"));
     connect(m_midiIndicator, &QToolButton::clicked, this, [this]() { openSettings(m_midiTabIndex); });
     statusLayout->addWidget(m_midiIndicator);
     statusLayout->addSpacing(8);
@@ -1580,10 +1609,10 @@ void MainWindow::setupUI() {
     m_dspCpuButton->setText("DSP 0%");
     m_dspCpuButton->setToolTip("DSP CPU Load. Click to reset peak load memory.");
     m_dspCpuButton->setCursor(Qt::PointingHandCursor);
-    m_dspCpuButton->setStyleSheet(
+    m_dspCpuButton->setStyleSheet(UiScale::css(
         "QToolButton { background-color: #263238; color: #80CBC4; font-size: 11px; border-radius: 4px; padding: 2px 8px; border: none; }"
         "QToolButton:hover { background-color: #37474F; }"
-    );
+    ));
     connect(m_dspCpuButton, &QToolButton::clicked, this, [this]() {
         m_peakCpuLoad = m_smoothedCpuLoad;
         m_engine.resetMaxProcessDurationUsec();
@@ -1595,17 +1624,17 @@ void MainWindow::setupUI() {
     m_xrunButton->setText("XRuns: 0");
     m_xrunButton->setToolTip("Click to reset XRun dropout counter");
     m_xrunButton->setCursor(Qt::PointingHandCursor);
-    m_xrunButton->setStyleSheet(
+    m_xrunButton->setStyleSheet(UiScale::css(
         "QToolButton { background-color: #263238; color: #80CBC4; font-size: 11px; border-radius: 4px; padding: 2px 8px; border: none; }"
         "QToolButton:hover { background-color: #37474F; }"
-    );
+    ));
     connect(m_xrunButton, &QToolButton::clicked, this, [this]() {
         m_engine.resetXRunCount();
         m_xrunButton->setText("XRuns: 0");
-        m_xrunButton->setStyleSheet(
+        m_xrunButton->setStyleSheet(UiScale::css(
             "QToolButton { background-color: #263238; color: #80CBC4; font-size: 11px; border-radius: 4px; padding: 2px 8px; border: none; }"
             "QToolButton:hover { background-color: #37474F; }"
-        );
+        ));
     });
     statusLayout->addWidget(m_xrunButton);
 
@@ -2349,7 +2378,7 @@ void MainWindow::onNodeContextMenuRequested(int row, int col, QPoint screenPos) 
     if (!node) return;
     
     QMenu menu(this);
-    menu.setStyleSheet(R"(
+    menu.setStyleSheet(UiScale::css(R"(
         QMenu {
             background-color: #1E1E1E;
             color: #E0E0E0;
@@ -2359,7 +2388,7 @@ void MainWindow::onNodeContextMenuRequested(int row, int col, QPoint screenPos) 
             background-color: #007ACC;
             color: white;
         }
-    )");
+    )"));
     
     QAction* bypassAct = menu.addAction(node->isBypassed() ? "Enable" : "Bypass");
     menu.addSeparator();
@@ -2423,18 +2452,18 @@ void MainWindow::setUnsavedChanges(bool unsaved) {
     if (m_unsavedChanges) {
         if (m_savePresetButton && (!m_saveFeedbackTimer || !m_saveFeedbackTimer->isActive())) {
             m_savePresetButton->setText("Save *");
-            m_savePresetButton->setStyleSheet(
+            m_savePresetButton->setStyleSheet(UiScale::css(
                 "QPushButton { background-color: #F57C00; color: white; font-weight: bold; border-radius: 4px; padding: 5px 10px; font-size: 11px; border: none; }"
                 "QPushButton:hover { background-color: #FF9800; }"
-            );
+            ));
         }
     } else {
         if (m_savePresetButton && (!m_saveFeedbackTimer || !m_saveFeedbackTimer->isActive())) {
             m_savePresetButton->setText("Save");
-            m_savePresetButton->setStyleSheet(
+            m_savePresetButton->setStyleSheet(UiScale::css(
                 "QPushButton { background-color: #00897B; color: white; font-weight: bold; border-radius: 4px; padding: 5px 10px; font-size: 11px; border: none; }"
                 "QPushButton:hover { background-color: #009688; }"
-            );
+            ));
         }
     }
     rebuildSlotButtons();
@@ -3261,9 +3290,9 @@ void MainWindow::rebuildSceneBar() {
         addBtn->setToolTip("Add a scene (copies the current one)");
         addBtn->setFixedSize(28, 44);
         addBtn->setCursor(Qt::PointingHandCursor);
-        addBtn->setStyleSheet(
+        addBtn->setStyleSheet(UiScale::css(
             "QToolButton { background-color: #242528; color: #E0E0E0; font-size: 12px; border: 1px solid #333438; border-radius: 4px; }"
-            "QToolButton:hover { background-color: #303236; color: white; }");
+            "QToolButton:hover { background-color: #303236; color: white; }"));
         connect(addBtn, &QToolButton::clicked, this, [this]() {
             const int index = m_scenes.addScene(captureBoardState());
             if (index < 0) return;
@@ -3281,10 +3310,10 @@ void MainWindow::rebuildSceneBar() {
 void MainWindow::showSceneMenu(int index, const QPoint& globalPos) {
     if (index < 0 || index >= m_scenes.count()) return;
     QMenu menu(this);
-    menu.setStyleSheet(
+    menu.setStyleSheet(UiScale::css(
         "QMenu { background-color: #1E1E22; color: #E0E0E0; border: 1px solid #333333; }"
         "QMenu::item:selected { background-color: #007ACC; color: white; }"
-        "QMenu::item:disabled { color: #555555; }");
+        "QMenu::item:disabled { color: #555555; }"));
     QAction* renameAct = menu.addAction("Rename...");
     // Colour submenu: named swatches from the curated palette, current one checked.
     QMenu* colorMenu = menu.addMenu("Color");
@@ -3369,15 +3398,15 @@ void MainWindow::rebuildSlotButtons() {
     m_bankNumberLabel->setText(QString("%1").arg(m_viewBank + 1, 2, 10, QChar('0')));
     m_bankNameLabel->setText(QFontMetrics(m_bankNameLabel->font()).elidedText(
         bankName.isEmpty() ? QString("Bank") : bankName, Qt::ElideRight, 96));
-    m_bankNumberLabel->setStyleSheet(QString(
+    m_bankNumberLabel->setStyleSheet(UiScale::css(QString(
         "QLabel { color: %1; font-weight: bold; font-size: 15px; background: transparent; border: none; }")
-        .arg(showingOther ? "#FFB74D" : "#E6E6EA"));
-    m_bankNameLabel->setStyleSheet(
-        "QLabel { color: #8A8A96; font-size: 11px; background: transparent; border: none; }");
-    m_bankLabel->setStyleSheet(QString(
+        .arg(showingOther ? "#FFB74D" : "#E6E6EA")));
+    m_bankNameLabel->setStyleSheet(UiScale::css(
+        "QLabel { color: #8A8A96; font-size: 11px; background: transparent; border: none; }"));
+    m_bankLabel->setStyleSheet(UiScale::css(QString(
         "QPushButton { background-color: #1C1C20; border: 1px solid %1; border-radius: 4px; }"
         "QPushButton:hover { background-color: #242429; border-color: %2; }")
-        .arg(showingOther ? "#FF9800" : "#333438", showingOther ? "#FFB74D" : "#00B0FF"));
+        .arg(showingOther ? "#FF9800" : "#333438", showingOther ? "#FFB74D" : "#00B0FF")));
     QString bankTip = QString("Bank %1. Click for all banks (Ctrl+P) · right-click to %2 it.")
         .arg(m_viewBank + 1, 2, 10, QChar('0'))
         .arg(bankName.isEmpty() ? "name" : "rename");
@@ -3550,7 +3579,7 @@ void MainWindow::startSlotRename(int slot, QWidget* tile) {
     auto* editor = new QLineEdit(tile); // child of the tile: always drawn on top of it
     editor->setText(pending ? m_currentPresetName : m_presetLibrary.nameAt(slot));
     editor->setGeometry(tile->rect().adjusted(4, tile->height() / 2 - 2, -4, -3));
-    editor->setStyleSheet("QLineEdit { background-color: #1E1E22; color: white; border: 1px solid #00B0FF; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; }");
+    editor->setStyleSheet(UiScale::css("QLineEdit { background-color: #1E1E22; color: white; border: 1px solid #00B0FF; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; }"));
     editor->selectAll();
     editor->show();
     editor->setFocus();
@@ -3583,7 +3612,7 @@ void MainWindow::startPresetRename() {
     auto* editor = new QLineEdit(label);
     editor->setText(m_currentPresetName);
     editor->setGeometry(6, label->height() - 36, label->width() - 12, 30);
-    editor->setStyleSheet("QLineEdit { background-color: #1E1E22; color: white; border: 1px solid #00B0FF; border-radius: 4px; padding: 1px 6px; font-size: 16px; font-weight: bold; }");
+    editor->setStyleSheet(UiScale::css("QLineEdit { background-color: #1E1E22; color: white; border: 1px solid #00B0FF; border-radius: 4px; padding: 1px 6px; font-size: 16px; font-weight: bold; }"));
     editor->selectAll();
     editor->show();
     editor->setFocus();
@@ -3611,7 +3640,7 @@ void MainWindow::startSceneRename(int index, QWidget* tile) {
     editor->setText(m_scenes.scene(index).name);
     // Cover the name line of the tile; the number stays visible above it.
     editor->setGeometry(tile->rect().adjusted(4, tile->height() / 2 - 2, -4, -3));
-    editor->setStyleSheet("QLineEdit { background-color: #1E1E22; color: white; border: 1px solid #00B0FF; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; }");
+    editor->setStyleSheet(UiScale::css("QLineEdit { background-color: #1E1E22; color: white; border: 1px solid #00B0FF; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: bold; }"));
     editor->selectAll();
     editor->show();
     editor->setFocus();
@@ -3663,9 +3692,9 @@ void MainWindow::setupMidi() {
         const QString text = msg.describe();
         if (m_midiIndicator) {
             if (!m_midiIndicatorTimer->isActive()) {
-                m_midiIndicator->setStyleSheet(
+                m_midiIndicator->setStyleSheet(UiScale::css(
                     "QToolButton { background-color: #263238; color: #CE93D8; font-size: 11px; border-radius: 4px; padding: 2px 8px; border: none; }"
-                    "QToolButton:hover { background-color: #37474F; }");
+                    "QToolButton:hover { background-color: #37474F; }"));
             }
             m_midiIndicator->setToolTip("Last MIDI: " + text + "\nClick for MIDI settings.");
         }
@@ -3792,11 +3821,11 @@ void MainWindow::startMidiLearn(const QString& what, std::function<void(const Mi
     auto* bubble = new QFrame(centralWidget());
     m_midiLearnBubble = bubble;
     bubble->setObjectName("midiLearnBubble");
-    bubble->setStyleSheet(
+    bubble->setStyleSheet(UiScale::css(
         "QFrame#midiLearnBubble { background-color: #2A1F33; border: 1px solid #CE93D8; border-radius: 8px; }"
         "QLabel { color: #F3E5F5; font-size: 12px; background: transparent; border: none; }"
         "QPushButton { background-color: #3A2A45; color: #E0E0E0; border: 1px solid #6A4A7A; border-radius: 4px; padding: 3px 10px; }"
-        "QPushButton:hover { background-color: #4A3558; }");
+        "QPushButton:hover { background-color: #4A3558; }"));
     auto* layout = new QHBoxLayout(bubble);
     layout->setContentsMargins(12, 8, 8, 8);
     auto* label = new QLabel(QString("<b>MIDI Learn</b> &nbsp;%1: move a pedal or press a switch on your controller… (Esc to cancel)")
@@ -3913,7 +3942,7 @@ void MainWindow::showMidiAssignmentsDialog() {
         "switches that send 127 for on and 0 for off. Range limits how far a pedal moves a parameter, and the last "
         "choice decides what happens when the controller and the value disagree after a scene change.", &dialog);
     intro->setWordWrap(true);
-    intro->setStyleSheet("color: #AAB3C0; font-size: 11px;");
+    intro->setStyleSheet(UiScale::css("color: #AAB3C0; font-size: 11px;"));
     layout->addWidget(intro);
 
     PresetMidiMap edited = m_presetMidi;
@@ -4016,7 +4045,7 @@ void MainWindow::showMidiAssignmentsDialog() {
     rebuild();
 
     auto* empty = new QLabel("No MIDI assignments in this preset yet.", &dialog);
-    empty->setStyleSheet("color: #777777; font-style: italic;");
+    empty->setStyleSheet(UiScale::css("color: #777777; font-style: italic;"));
     empty->setVisible(edited.assignments().empty());
     layout->addWidget(empty);
 
@@ -4052,7 +4081,7 @@ QWidget* MainWindow::buildMidiSettingsTab() {
         "right unless something else on the same port sends its own messages.<br><br>"
         "<b>Last message</b> shows what arrived, which is the quickest way to see what a switch or "
         "pedal actually sends.");
-    deviceBox->setStyleSheet(groupStyle);
+    deviceBox->setStyleSheet(UiScale::css(groupStyle));
     auto* deviceForm = SettingsUi::form(deviceBox);
     auto* deviceRow = new QHBoxLayout();
     auto* deviceCombo = new QComboBox(deviceBox);
@@ -4093,7 +4122,7 @@ QWidget* MainWindow::buildMidiSettingsTab() {
     deviceForm->addRow("Channel:", channelCombo);
 
     auto* lastLabel = new QLabel("—", deviceBox);
-    lastLabel->setStyleSheet("color: #CE93D8; font-size: 12px; font-weight: bold;");
+    lastLabel->setStyleSheet(UiScale::css("color: #CE93D8; font-size: 12px; font-weight: bold;"));
     m_midiLastMessageSink = [lastLabel](const QString& text) { lastLabel->setText(text); };
     deviceForm->addRow("Last message:", lastLabel);
     tabLayout->addWidget(deviceBox);
@@ -4106,7 +4135,7 @@ QWidget* MainWindow::buildMidiSettingsTab() {
         "that can only send Program Change; no gap, because nothing is reloaded.<br><br>"
         "<b>Bank Select</b> (CC 0) reaches preset slots past the first 128. Tick <b>counts programs "
         "from 1</b> if your controller's PC 1 should mean the first preset or scene.");
-    pcBox->setStyleSheet(groupStyle);
+    pcBox->setStyleSheet(UiScale::css(groupStyle));
     auto* pcLayout = new QVBoxLayout(pcBox);
     pcLayout->setSpacing(SettingsUi::kGroupSpacing);
     auto* pcForm = SettingsUi::form(nullptr);
@@ -4150,7 +4179,7 @@ QWidget* MainWindow::buildMidiSettingsTab() {
         "D back to A. Best when your controller also has bank up/down, because the bank then changes "
         "only when you say so.<br><br>"
         "Either way the setting applies to the Previous/Next buttons and Alt+Left / Alt+Right too.");
-    stepBox->setStyleSheet(groupStyle);
+    stepBox->setStyleSheet(UiScale::css(groupStyle));
     auto* stepLayout = new QVBoxLayout(stepBox);
     stepLayout->setSpacing(SettingsUi::kGroupSpacing);
     auto* stepAll = new QRadioButton("Step through every preset, across banks", stepBox);
@@ -4178,7 +4207,7 @@ QWidget* MainWindow::buildMidiSettingsTab() {
         "• <b>Program Change</b>: choose Scenes above<br>"
         "• <b>Previous / Next</b>: step through scenes<br><br>"
         "Block on/off and pedal controls are learned per preset instead: right-click a block or knob → MIDI Learn.");
-    cmdBox->setStyleSheet(groupStyle);
+    cmdBox->setStyleSheet(UiScale::css(groupStyle));
     auto* cmdLayout = new QVBoxLayout(cmdBox);
     cmdLayout->setSpacing(SettingsUi::kGroupSpacing);
 
@@ -4197,7 +4226,7 @@ QWidget* MainWindow::buildMidiSettingsTab() {
     cmdLayout->addLayout(commandGrid);
 
     auto* cmdMessage = new QLabel(cmdBox);
-    cmdMessage->setStyleSheet(SettingsUi::kWarningCss);
+    cmdMessage->setStyleSheet(UiScale::css(SettingsUi::kWarningCss));
 
     auto spinsShared = std::make_shared<std::vector<QSpinBox*>>(kMidiCommandCount, nullptr);
     int presetRow = 1;
@@ -4220,7 +4249,7 @@ QWidget* MainWindow::buildMidiSettingsTab() {
 
         const int column = isScene ? 4 : 0;
         auto* name = new QLabel(midiCommandName(command), cmdBox);
-        name->setStyleSheet(SettingsUi::kValueCss);
+        name->setStyleSheet(UiScale::css(SettingsUi::kValueCss));
         auto* spin = new QSpinBox(cmdBox);
         spin->setRange(-1, 127);
         spin->setSpecialValueText("Off");
@@ -4305,10 +4334,10 @@ void MainWindow::triggerSaveFeedback() {
     }
 
     m_savePresetButton->setText("Saved!");
-    m_savePresetButton->setStyleSheet(
+    m_savePresetButton->setStyleSheet(UiScale::css(
         "QPushButton { background-color: #4CAF50; color: white; font-weight: bold; border-radius: 4px; padding: 5px 10px; font-size: 11px; border: none; }"
         "QPushButton:hover { background-color: #66BB6A; }"
-    );
+    ));
     m_saveFeedbackTimer->start(1500);
 
     if (m_statusLabel) {
@@ -4549,20 +4578,20 @@ void MainWindow::updateCPUStatus() {
                 m_lastCpuDisplay = displayCpu;
             }
             if (cpuSeverity != m_lastCpuSeverity && cpuSeverity == 2) {
-                m_dspCpuButton->setStyleSheet(
+                m_dspCpuButton->setStyleSheet(UiScale::css(
                     "QToolButton { background-color: #D32F2F; color: white; font-weight: bold; border-radius: 4px; padding: 2px 8px; border: none; }"
                     "QToolButton:hover { background-color: #F44336; }"
-                );
+                ));
             } else if (cpuSeverity != m_lastCpuSeverity && cpuSeverity == 1) {
-                m_dspCpuButton->setStyleSheet(
+                m_dspCpuButton->setStyleSheet(UiScale::css(
                     "QToolButton { background-color: #FBC02D; color: #18181B; font-weight: bold; border-radius: 4px; padding: 2px 8px; border: none; }"
                     "QToolButton:hover { background-color: #FDD835; }"
-                );
+                ));
             } else if (cpuSeverity != m_lastCpuSeverity) {
-                m_dspCpuButton->setStyleSheet(
+                m_dspCpuButton->setStyleSheet(UiScale::css(
                     "QToolButton { background-color: #263238; color: #80CBC4; font-size: 11px; border-radius: 4px; padding: 2px 8px; border: none; }"
                     "QToolButton:hover { background-color: #37474F; }"
-                );
+                ));
             }
             m_lastCpuSeverity = cpuSeverity;
             QString tooltip = QString("DSP CPU Load: %1%\nPeak Load: %2%\nBuffer: %3 frames @ %4 Hz")
@@ -4639,15 +4668,15 @@ void MainWindow::updateCPUStatus() {
     if (m_xrunButton && xruns != m_lastXrunCount) {
         m_xrunButton->setText(QString("XRuns: %1").arg(xruns));
         if (xruns > 0) {
-            m_xrunButton->setStyleSheet(
+            m_xrunButton->setStyleSheet(UiScale::css(
                 "QToolButton { background-color: #D32F2F; color: white; font-weight: bold; border-radius: 4px; padding: 2px 8px; border: none; }"
                 "QToolButton:hover { background-color: #F44336; }"
-            );
+            ));
         } else {
-            m_xrunButton->setStyleSheet(
+            m_xrunButton->setStyleSheet(UiScale::css(
                 "QToolButton { background-color: #263238; color: #80CBC4; font-size: 11px; border-radius: 4px; padding: 2px 8px; border: none; }"
                 "QToolButton:hover { background-color: #37474F; }"
-            );
+            ));
         }
         m_lastXrunCount = xruns;
     }
@@ -4667,32 +4696,32 @@ void MainWindow::updateCPUStatus() {
 
     if (m_inputGainLabel) {
         if (m_inputClipHoldTicks > 0) {
-            m_inputGainLabel->setStyleSheet(
+            m_inputGainLabel->setStyleSheet(UiScale::css(
                 "QToolButton { background-color: rgba(211, 47, 47, 0.35); border: 1px solid #FF5252; color: #FF8A80; font-weight: bold; border-radius: 4px; padding: 4px; }"
                 "QToolButton:hover { background-color: rgba(211, 47, 47, 0.5); }"
-            );
+            ));
             m_inputGainLabel->setToolTip("Input is CLIPPING (> 0 dB)! Click to clear");
         } else {
-            m_inputGainLabel->setStyleSheet(
+            m_inputGainLabel->setStyleSheet(UiScale::css(
                 "QToolButton { background: transparent; border: none; color: #b8b8c0; padding: 4px; }"
                 "QToolButton:hover { color: white; background: #29292f; border-radius: 4px; }"
-            );
+            ));
             m_inputGainLabel->setToolTip("Open input gain fader");
         }
     }
 
     if (m_outputGainLabel) {
         if (m_outputClipHoldTicks > 0) {
-            m_outputGainLabel->setStyleSheet(
+            m_outputGainLabel->setStyleSheet(UiScale::css(
                 "QToolButton { background-color: rgba(211, 47, 47, 0.35); border: 1px solid #FF5252; color: #FF8A80; font-weight: bold; border-radius: 4px; padding: 4px; }"
                 "QToolButton:hover { background-color: rgba(211, 47, 47, 0.5); }"
-            );
+            ));
             m_outputGainLabel->setToolTip("Output is CLIPPING (> 0 dB)! Click to clear");
         } else {
-            m_outputGainLabel->setStyleSheet(
+            m_outputGainLabel->setStyleSheet(UiScale::css(
                 "QToolButton { background: transparent; border: none; color: #b8b8c0; padding: 4px; }"
                 "QToolButton:hover { color: white; background: #29292f; border-radius: 4px; }"
-            );
+            ));
             m_outputGainLabel->setToolTip("Open output gain fader");
         }
     }
@@ -5914,7 +5943,7 @@ public:
         if (!m_suilInstance) {
             QLabel* errorLabel = new QLabel("Failed to load plugin GUI.\nUsing generic parameters sidebar instead.", this);
             errorLabel->setAlignment(Qt::AlignCenter);
-            errorLabel->setStyleSheet("color: #888888; font-size: 12px; margin: 15px;");
+            errorLabel->setStyleSheet(UiScale::css("color: #888888; font-size: 12px; margin: 15px;"));
             layout->addWidget(errorLabel);
             resize(320, 100);
         } else {
@@ -6125,19 +6154,19 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         auto* description = new QLabel(
             "Matches this preset's level before the global Master Out control.", outputCard);
         description->setWordWrap(true);
-        description->setStyleSheet("color:#AAB3C0; font-size:11px; border:none;");
+        description->setStyleSheet(UiScale::css("color:#AAB3C0; font-size:11px; border:none;"));
         outputLayout->addWidget(description);
 
         auto makeLevelCell = [this, outputCard](const QString& name, float db, const QString& tooltip,
                                                  std::function<void(float)> apply) {
             auto* cell = new QWidget(outputCard);
-            cell->setStyleSheet("background:transparent; border:none;");
+            cell->setStyleSheet(UiScale::css("background:transparent; border:none;"));
             auto* cellLayout = new QVBoxLayout(cell);
             cellLayout->setContentsMargins(4, 3, 4, 3);
             cellLayout->setSpacing(3);
             auto* title = new QLabel(name, cell);
             title->setAlignment(Qt::AlignCenter);
-            title->setStyleSheet("color:#C9D0DA; font-size:10px; border:none;");
+            title->setStyleSheet(UiScale::css("color:#C9D0DA; font-size:10px; border:none;"));
             title->setToolTip(tooltip);
             auto* knob = new InspectorKnob(cell);
             knob->setRange(-240, 120);
@@ -6147,7 +6176,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
             knob->setToolTip(tooltip + "\nDrag to adjust. Double-click to reset.");
             auto* valueLabel = new InspectorValueLabel(cell);
             valueLabel->setAlignment(Qt::AlignCenter);
-            valueLabel->setStyleSheet("color:#7DD3FC; font-size:11px; font-weight:bold; border:none;");
+            valueLabel->setStyleSheet(UiScale::css("color:#7DD3FC; font-size:11px; font-weight:bold; border:none;"));
             auto updateValue = [knob, valueLabel](int value) {
                 const QString text = QString::number(value / 10.0, 'f', 1) + " dB";
                 valueLabel->setText(text);
@@ -6188,24 +6217,24 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
 
     if (node->isMissing()) {
         auto* missingBox = new InspectorCard(m_paramContainer);
-        missingBox->setStyleSheet("QFrame#inspectorCard { background:#291B1E; border:1px solid #804147; border-radius:8px; }");
+        missingBox->setStyleSheet(UiScale::css("QFrame#inspectorCard { background:#291B1E; border:1px solid #804147; border-radius:8px; }"));
         auto* missingLayout = new QVBoxLayout(missingBox);
         
         auto* titleLabel = new QLabel("Plugin Missing", missingBox);
-        titleLabel->setStyleSheet("font-weight: bold; color: #FF5252; font-size: 14px;");
+        titleLabel->setStyleSheet(UiScale::css("font-weight: bold; color: #FF5252; font-size: 14px;"));
         missingLayout->addWidget(titleLabel);
 
         auto* nameLabel = new QLabel(QString("<b>Name:</b> %1").arg(QString::fromStdString(node->getName())), missingBox);
-        nameLabel->setStyleSheet("color: #ECECF0; font-size: 12px; margin-top: 4px;");
+        nameLabel->setStyleSheet(UiScale::css("color: #ECECF0; font-size: 12px; margin-top: 4px;"));
         missingLayout->addWidget(nameLabel);
 
         auto* uriLabel = new QLabel(QString("<b>URI / Path:</b><br><code style='color:#FF8A80;'>%1</code>").arg(QString::fromStdString(node->getPluginURI())), missingBox);
-        uriLabel->setStyleSheet("color: #CCCCCC; font-size: 11px; margin-top: 4px;");
+        uriLabel->setStyleSheet(UiScale::css("color: #CCCCCC; font-size: 11px; margin-top: 4px;"));
         uriLabel->setWordWrap(true);
         missingLayout->addWidget(uriLabel);
 
         auto* infoLabel = new QLabel("Audio is automatically passed through without processing. Once this plugin is restored or reinstalled, click <b>Rescan Plugins Now</b> in Settings to activate it.", missingBox);
-        infoLabel->setStyleSheet("color: #A0A0B0; font-size: 11px; margin-top: 8px;");
+        infoLabel->setStyleSheet(UiScale::css("color: #A0A0B0; font-size: 11px; margin-top: 8px;"));
         infoLabel->setWordWrap(true);
         missingLayout->addWidget(infoLabel);
 
@@ -6226,13 +6255,13 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         pluginHeaderLayout->setSpacing(8);
 
         auto* pluginName = new QLabel(QString::fromStdString(node->getName()), pluginHeader);
-        pluginName->setStyleSheet("font-weight: bold; color: #F1F3F6; font-size: 13px; border: none;");
+        pluginName->setStyleSheet(UiScale::css("font-weight: bold; color: #F1F3F6; font-size: 13px; border: none;"));
         pluginHeaderLayout->addWidget(pluginName);
 
         const QString format = node->getType() == NodeType::LV2Plugin ? "LV2"
             : node->getType() == NodeType::VST3Plugin ? "VST3" : "CLAP";
         auto* formatBadge = new QLabel(format, pluginHeader);
-        formatBadge->setStyleSheet("background: #273746; color: #80D8FF; border: none; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;");
+        formatBadge->setStyleSheet(UiScale::css("background: #273746; color: #80D8FF; border: none; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;"));
         pluginHeaderLayout->addWidget(formatBadge);
         pluginHeaderLayout->addStretch();
         pluginActions = pluginHeaderLayout;
@@ -6240,15 +6269,27 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
 
         auto* presetsButton = new QPushButton("Plugin Presets ▾", m_paramContainer);
         presetsButton->setToolTip("Load, save, and manage reusable settings for this plugin");
-        presetsButton->setStyleSheet(
+        presetsButton->setStyleSheet(UiScale::css(
             "QPushButton { background-color: #333338; color: #C5DDE8; padding: 5px 8px; font-size: 11px; font-weight: bold; border-radius: 4px; border: none; }"
             "QPushButton:hover { background-color: #44444A; color: #FFFFFF; }"
-        );
+        ));
         pluginActions->addWidget(presetsButton);
 
         connect(presetsButton, &QPushButton::clicked, this, [this, node, presetsButton]() {
             QMenu menu(this);
-            QAction* loadAction = menu.addAction("Load...");
+            // Saved presets are listed right here, so one click loads them.
+            QMenu* loadMenu = menu.addMenu("Load");
+            {
+                const QStringList files = QDir(pluginPresetDirectory(*node)).entryList({"*.json"}, QDir::Files, QDir::Name);
+                if (files.isEmpty()) {
+                    loadMenu->addAction("No saved presets")->setEnabled(false);
+                }
+                for (const QString& file : files) {
+                    const QString presetName = file.left(file.size() - 5);
+                    QAction* presetAction = loadMenu->addAction(presetName);
+                    presetAction->setData(presetName);
+                }
+            }
             menu.addSeparator();
             QAction* saveAsAction = menu.addAction("Save As...");
             QAction* updateAction = menu.addAction("Update Existing...");
@@ -6264,8 +6305,9 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
                 const QString name = QInputDialog::getItem(this, title, "Preset:", names, 0, false, &accepted);
                 return accepted ? name : QString{};
             };
-            if (chosen == loadAction) {
-                const QString name = choosePreset("Load Plugin Preset");
+            const bool loadChosen = chosen && loadMenu->actions().contains(chosen) && chosen->isEnabled();
+            if (loadChosen) {
+                const QString name = chosen->data().toString();
                 if (name.isEmpty()) return;
                 if (!loadPluginPreset(node, name)) {
                     QMessageBox::warning(this, "Plugin Preset", "Could not load this plugin preset.");
@@ -6368,10 +6410,10 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
             }
             
             QPushButton* uiBtn = new QPushButton("Open GUI", m_paramContainer);
-            uiBtn->setStyleSheet(
+            uiBtn->setStyleSheet(UiScale::css(
                 "QPushButton { background-color: #00897B; color: white; font-weight: bold; border-radius: 4px; padding: 5px 8px; font-size: 11px; border: none; }"
                 "QPushButton:hover { background-color: #009688; }"
-            );
+            ));
             pluginActions->addWidget(uiBtn);
             
             connect(uiBtn, &QPushButton::clicked, this, [this, lv2Node, uiToOpen, isGtkUi, isX11Ui]() {
@@ -6395,10 +6437,10 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
     if (vst3Node && vst3Node->hasEditor()) {
         hasCustomUI = true;
         QPushButton* uiBtn = new QPushButton("Open GUI", m_paramContainer);
-        uiBtn->setStyleSheet(
+        uiBtn->setStyleSheet(UiScale::css(
             "QPushButton { background-color: #00897B; color: white; font-weight: bold; border-radius: 4px; padding: 5px 8px; font-size: 11px; border: none; }"
             "QPushButton:hover { background-color: #009688; }"
-        );
+        ));
         pluginActions->addWidget(uiBtn);
         
         connect(uiBtn, &QPushButton::clicked, this, [this, vst3Node]() {
@@ -6412,10 +6454,10 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
     if (clapNode && clapNode->hasGUI()) {
         hasCustomUI = true;
         QPushButton* uiBtn = new QPushButton("Open GUI", m_paramContainer);
-        uiBtn->setStyleSheet(
+        uiBtn->setStyleSheet(UiScale::css(
             "QPushButton { background-color: #00897B; color: white; font-weight: bold; border-radius: 4px; padding: 5px 8px; font-size: 11px; border: none; }"
             "QPushButton:hover { background-color: #009688; }"
-        );
+        ));
         pluginActions->addWidget(uiBtn);
         
         connect(uiBtn, &QPushButton::clicked, this, [this, clapNode]() {
@@ -6461,19 +6503,19 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         namModule = new InspectorCard(m_paramContainer);
         namModule->setObjectName("namModelModule");
         namModule->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-        namModule->setStyleSheet(
+        namModule->setStyleSheet(UiScale::css(
             "QFrame#namModelModule { background: #20242A; border: 1px solid #3A424B; border-radius: 8px; }"
             "QFrame#namModelModule QLabel { border: none; background: transparent; }"
-        );
+        ));
         auto* moduleLayout = new QVBoxLayout(namModule);
         moduleLayout->setContentsMargins(16, 10, 16, 10);
         moduleLayout->setSpacing(6);
         auto* moduleHeader = new QHBoxLayout();
         auto* moduleTitle = new QLabel("NAM MODEL", namModule);
-        moduleTitle->setStyleSheet("color: #F0A35A; font-size: 10px; font-weight: bold; letter-spacing: 1.2px;");
+        moduleTitle->setStyleSheet(UiScale::css("color: #F0A35A; font-size: 10px; font-weight: bold; letter-spacing: 1.2px;"));
         moduleHeader->addWidget(moduleTitle);
         auto* moduleSubtitle = new QLabel("Neural Amp Modeler", namModule);
-        moduleSubtitle->setStyleSheet("color: #9AA6B4; font-size: 11px;");
+        moduleSubtitle->setStyleSheet(UiScale::css("color: #9AA6B4; font-size: 11px;"));
         moduleHeader->addWidget(moduleSubtitle);
         moduleHeader->addStretch();
         moduleLayout->addLayout(moduleHeader);
@@ -6485,7 +6527,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         // Three standard 96px controls, their gaps, and the bank inset fit on one row.
         namKnobBank->setMinimumWidth(312);
         namKnobBank->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-        namKnobBank->setStyleSheet("QWidget#namKnobBank { background: transparent; border-left: 1px solid #3A424B; padding-left: 10px; }");
+        namKnobBank->setStyleSheet(UiScale::css("QWidget#namKnobBank { background: transparent; border-left: 1px solid #3A424B; padding-left: 10px; }"));
         controlHostLayout = new QVBoxLayout(namKnobBank);
         controlHostLayout->setContentsMargins(8, 0, 0, 0);
         controlHostLayout->setSpacing(2);
@@ -6497,9 +6539,9 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
     if (hasGenericResources) {
         resourceSection = new InspectorCard(m_paramContainer);
         resourceSection->setObjectName("resourceSection");
-        resourceSection->setStyleSheet(
+        resourceSection->setStyleSheet(UiScale::css(
             "QFrame#resourceSection { background:#22242A; border:1px solid #363941; border-radius:8px; }"
-        );
+        ));
         resourceSectionLayout = new QVBoxLayout(resourceSection);
         resourceSectionLayout->setContentsMargins(12, 10, 12, 10);
         resourceSectionLayout->setSpacing(5);
@@ -6517,12 +6559,12 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         QWidget* controlParent = hasNamModel ? namKnobBank : parameterSection;
         if (hasCustomUI) {
             QLabel* infoLabel = new QLabel("All controls are managed directly in the graphical interface.", controlParent);
-            infoLabel->setStyleSheet("color: #888888; font-size: 11px; font-style: italic; margin: 4px;");
+            infoLabel->setStyleSheet(UiScale::css("color: #888888; font-size: 11px; font-style: italic; margin: 4px;"));
             infoLabel->setWordWrap(true);
             controlHostLayout->addWidget(infoLabel);
         } else {
             QLabel* noParamLabel = new QLabel("No parameters available for this plugin.", controlParent);
-            noParamLabel->setStyleSheet("color: #888888; font-size: 11px; font-style: italic; margin: 4px;");
+            noParamLabel->setStyleSheet(UiScale::css("color: #888888; font-size: 11px; font-style: italic; margin: 4px;"));
             controlHostLayout->addWidget(noParamLabel);
         }
     }
@@ -6537,7 +6579,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         QWidget* rowWidget = new QWidget(hasNamModel ? namKnobBank : parameterSection);
         rowWidget->setFixedWidth(hasNamModel ? 96 : 112);
         rowWidget->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
-        rowWidget->setStyleSheet("background: transparent; border: none;");
+        rowWidget->setStyleSheet(UiScale::css("background: transparent; border: none;"));
         QVBoxLayout* rowLayout = new QVBoxLayout(rowWidget);
         rowLayout->setContentsMargins(4, 3, 4, 3);
         rowLayout->setSpacing(3);
@@ -6545,7 +6587,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         QLabel* label = new QLabel(QString::fromStdString(param.name), rowWidget);
         label->setToolTip(QString::fromStdString(param.name));
         label->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-        label->setStyleSheet("color: #C9CDD5; font-size: 10px; border: none;");
+        label->setStyleSheet(UiScale::css("color: #C9CDD5; font-size: 10px; border: none;"));
         label->setWordWrap(false);
         rowLayout->addWidget(label);
         
@@ -6578,9 +6620,9 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         const int paramMidiCC = paramMidi ? paramMidi->cc : -1;
         connect(rowWidget, &QWidget::customContextMenuRequested, this, [this, node, idx, globalParam, rowWidget, paramMidiCC](const QPoint& pos) {
             QMenu menu(this);
-            menu.setStyleSheet(
+            menu.setStyleSheet(UiScale::css(
                 "QMenu { background-color: #1E1E22; color: #E0E0E0; border: 1px solid #333333; }"
-                "QMenu::item:selected { background-color: #007ACC; color: white; }");
+                "QMenu::item:selected { background-color: #007ACC; color: white; }"));
             QAction* act = menu.addAction(globalParam ? "Store per scene" : "Keep same in all scenes");
             menu.addSeparator();
             QAction* learnAct = menu.addAction(paramMidiCC >= 0 ? QString("MIDI: CC %1 - Learn Again...").arg(paramMidiCC)
@@ -6697,7 +6739,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
             auto* valueLabel = new InspectorValueLabel(rowWidget);
             valueLabel->setText(QString::number(qRound(param.value)));
             valueLabel->setAlignment(Qt::AlignCenter);
-            valueLabel->setStyleSheet("color: #80D8FF; font-size: 11px; border: none;");
+            valueLabel->setStyleSheet(UiScale::css("color: #80D8FF; font-size: 11px; border: none;"));
             valueLabel->setEditor(QString::fromStdString(param.name), min, max, 0,
                 [knob] { return static_cast<double>(knob->value()); },
                 [knob](double value) { knob->setValue(qRound(value)); });
@@ -6733,7 +6775,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
             auto* valueLabel = new InspectorValueLabel(rowWidget);
             valueLabel->setText(QString::number(param.value, 'f', 2));
             valueLabel->setAlignment(Qt::AlignCenter);
-            valueLabel->setStyleSheet("color: #80D8FF; font-size: 11px; border: none;");
+            valueLabel->setStyleSheet(UiScale::css("color: #80D8FF; font-size: 11px; border: none;"));
             valueLabel->setEditor(QString::fromStdString(param.name), min, max, 4,
                 [knob, min, max] { return min + (knob->value() / 1000.0) * (max - min); },
                 [knob, min, max](double value) {
@@ -6782,7 +6824,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
             auto* modelInfo = new QWidget(namModule);
             modelInfo->setMinimumWidth(220);
             modelInfo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-            modelInfo->setStyleSheet("background: transparent;");
+            modelInfo->setStyleSheet(UiScale::css("background: transparent;"));
             namInfoLayout = new QVBoxLayout(modelInfo);
             namInfoLayout->setContentsMargins(0, 3, 0, 3);
             namInfoLayout->setSpacing(4);
@@ -6792,12 +6834,12 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
                 : meta.toneTitle);
             auto* titleLabel = new QLabel(title, modelInfo);
             titleLabel->setWordWrap(true);
-            titleLabel->setStyleSheet("color: #F2F5F7; font-size: 16px; font-weight: bold;");
+            titleLabel->setStyleSheet(UiScale::css("color: #F2F5F7; font-size: 16px; font-weight: bold;"));
             namInfoLayout->addWidget(titleLabel);
             const QString author = QString::fromStdString(meta.author.empty() ? meta.modeledBy : meta.author);
             auto* authorLabel = new QLabel(author.isEmpty() ? "Local model file" : "Captured by " + author, modelInfo);
             authorLabel->setWordWrap(true);
-            authorLabel->setStyleSheet("color: #A6B1BC; font-size: 11px;");
+            authorLabel->setStyleSheet(UiScale::css("color: #A6B1BC; font-size: 11px;"));
             namInfoLayout->addWidget(authorLabel);
             namFooterLayout = new QHBoxLayout();
             namFooterLayout->setContentsMargins(0, 3, 0, 0);
@@ -6808,23 +6850,23 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
 
             auto* browseBtn = new QPushButton("Browse Captures", namModule);
             browseBtn->setToolTip("Your capture library and TONE3000: preview, add and load NAM captures");
-            browseBtn->setStyleSheet(
+            browseBtn->setStyleSheet(UiScale::css(
                 "QPushButton { background: #D97B32; color: #16191D; font-weight: bold; border: none; border-radius: 4px; padding: 7px 11px; font-size: 11px; }"
                 "QPushButton:hover { background: #EE9146; } QPushButton:focus { outline: 1px solid #80D8FF; }"
-            );
+            ));
             auto* loadBtn = new QPushButton("Load Local File", namModule);
-            loadBtn->setStyleSheet(
+            loadBtn->setStyleSheet(UiScale::css(
                 "QPushButton { background: #303840; color: #DCE6EC; font-weight: bold; border: 1px solid #46515C; border-radius: 4px; padding: 6px 10px; font-size: 11px; }"
                 "QPushButton:hover { background: #3A454F; }"
-            );
+            ));
             namFooterLayout->addWidget(browseBtn);
             namFooterLayout->addWidget(loadBtn);
             if (!currentPath.empty()) {
                 auto* detailsBtn = new QPushButton("Model Details", namModule);
-                detailsBtn->setStyleSheet(
+                detailsBtn->setStyleSheet(UiScale::css(
                     "QPushButton { background: transparent; color: #80D8FF; font-weight: bold; border: 1px solid #3D5664; border-radius: 4px; padding: 6px 10px; font-size: 11px; }"
                     "QPushButton:hover { background: #26343D; }"
-                );
+                ));
                 namFooterLayout->addWidget(detailsBtn);
                 connect(detailsBtn, &QPushButton::clicked, this, [this, node]() {
                     ModelDetailsDialog dialog(node, &m_engine, this);
@@ -6875,7 +6917,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
             continue;
         }
         QFrame* fpFrame = new QFrame(resourceSection);
-        fpFrame->setStyleSheet("background: transparent; border: none;");
+        fpFrame->setStyleSheet(UiScale::css("background: transparent; border: none;"));
         QVBoxLayout* fpLayout = new QVBoxLayout(fpFrame);
         fpLayout->setContentsMargins(0, 2, 0, 2);
         fpLayout->setSpacing(5);
@@ -6885,12 +6927,12 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         fpLayout->addLayout(resourceInfoLayout);
 
         QLabel* titleLabel = new QLabel(QString::fromStdString(fp.label), fpFrame);
-        titleLabel->setStyleSheet("font-weight: bold; color: #00B0FF; font-size: 12px; background: transparent; border: none;");
+        titleLabel->setStyleSheet(UiScale::css("font-weight: bold; color: #00B0FF; font-size: 12px; background: transparent; border: none;"));
         resourceInfoLayout->addWidget(titleLabel);
 
         std::string currentPath = fp.fileValue;
         QLabel* fileLabel = new QLabel(fpFrame);
-        fileLabel->setStyleSheet("color: #E0E0E0; font-size: 11px; font-style: italic; background: transparent; border: none;");
+        fileLabel->setStyleSheet(UiScale::css("color: #E0E0E0; font-size: 11px; font-style: italic; background: transparent; border: none;"));
         fileLabel->setWordWrap(true);
         if (currentPath.empty()) {
             fileLabel->setText("No file loaded");
@@ -6907,10 +6949,10 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
 
         QPushButton* loadBtn = new QPushButton("Load File...", fpFrame);
         loadBtn->setFixedWidth(112);
-        loadBtn->setStyleSheet(
+        loadBtn->setStyleSheet(UiScale::css(
             "QPushButton { background-color: #00897B; color: white; font-weight: bold; border-radius: 4px; padding: 6px; font-size: 11px; border: none; }"
             "QPushButton:hover { background-color: #009688; }"
-        );
+        ));
         btnLayout->addWidget(loadBtn);
 
         std::string uri = fp.uri;
@@ -6922,9 +6964,9 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         if (isIrSlot) {
             QPushButton* irBrowseBtn = new QPushButton("Browse IRs", fpFrame);
             irBrowseBtn->setToolTip("Your IR library and TONE3000: preview impulse responses live in this slot");
-            irBrowseBtn->setStyleSheet(
+            irBrowseBtn->setStyleSheet(UiScale::css(
                 "QPushButton { background-color: #1D5B79; color: white; font-weight: bold; border-radius: 4px; padding: 6px 10px; font-size: 11px; border: none; }"
-                "QPushButton:hover { background-color: #23739A; }");
+                "QPushButton:hover { background-color: #23739A; }"));
             btnLayout->addWidget(irBrowseBtn);
             connect(irBrowseBtn, &QPushButton::clicked, this, [this, node, uri]() {
                 Tone3000Dialog dialog(node.get(), &m_engine, this, Tone3000Dialog::Mode::Ir, uri);
@@ -6995,7 +7037,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         variantLayout->setSpacing(3);
 
         QLabel* varTitleLabel = new QLabel("PROFILE VARIANT", variantPanel);
-        varTitleLabel->setStyleSheet("font-size: 10px; font-weight: bold; color: #8F98A8; letter-spacing: 1px; border: none;");
+        varTitleLabel->setStyleSheet(UiScale::css("font-size: 10px; font-weight: bold; color: #8F98A8; letter-spacing: 1px; border: none;"));
         variantLayout->addWidget(varTitleLabel);
 
         QComboBox* varCombo = new QComboBox(variantPanel);
@@ -7262,7 +7304,7 @@ void MainWindow::showRoutingNodeControls(int row, bool isSplit) {
     headerLayout->setContentsMargins(12, 10, 12, 10);
     headerLayout->setSpacing(5);
     auto* header = new QLabel(headerText, headerCard);
-    header->setStyleSheet("font-weight:bold; color:#DCE8F5; font-size:14px; border:none; background:transparent;");
+    header->setStyleSheet(UiScale::css("font-weight:bold; color:#DCE8F5; font-size:14px; border:none; background:transparent;"));
     headerLayout->addWidget(header);
 
     const int sourceCol = m_canvas->getSplitCol(row);
@@ -7288,16 +7330,16 @@ void MainWindow::showRoutingNodeControls(int row, bool isSplit) {
     }
     auto* route = new QLabel(source + "  ->  " + destination, headerCard);
     route->setWordWrap(true);
-    route->setStyleSheet("color:#AAB3C0; background:#191B20; border:1px solid #343842; border-radius:4px; padding:4px 7px;");
+    route->setStyleSheet(UiScale::css("color:#AAB3C0; background:#191B20; border:1px solid #343842; border-radius:4px; padding:4px 7px;"));
     headerLayout->addWidget(route);
     m_paramLayout->addWidget(headerCard);
 
     auto addKnob = [this](QLayout* host, const QString& title, int minimum, int maximum, int value, int defaultValue, const QColor& accent = QColor("#55B8E8")) {
         auto* cell = new QWidget(m_paramContainer); cell->setFixedWidth(104);
-        cell->setStyleSheet("background:transparent; border:none;");
+        cell->setStyleSheet(UiScale::css("background:transparent; border:none;"));
         auto* layout = new QVBoxLayout(cell); layout->setContentsMargins(4, 3, 4, 3); layout->setSpacing(3);
-        auto* label = new QLabel(title, cell); label->setAlignment(Qt::AlignCenter); label->setStyleSheet("color:#C9D0DA; font-size:10px;");
-        auto* valueLabel = new InspectorValueLabel(cell); valueLabel->setAlignment(Qt::AlignCenter); valueLabel->setStyleSheet("color:#7DD3FC; font-size:11px; font-weight:bold;");
+        auto* label = new QLabel(title, cell); label->setAlignment(Qt::AlignCenter); label->setStyleSheet(UiScale::css("color:#C9D0DA; font-size:10px;"));
+        auto* valueLabel = new InspectorValueLabel(cell); valueLabel->setAlignment(Qt::AlignCenter); valueLabel->setStyleSheet(UiScale::css("color:#7DD3FC; font-size:11px; font-weight:bold;"));
         auto* knob = new InspectorKnob(cell); knob->setRange(minimum, maximum); knob->setValue(value); knob->setDefaultValue(defaultValue); knob->setAccentColor(accent); knob->setAccessibleName(title);
         knob->setToolTip("Drag to adjust. Double-click to reset.");
         valueLabel->setEditor("Set " + title, minimum, maximum, 0,
@@ -7314,8 +7356,8 @@ void MainWindow::showRoutingNodeControls(int row, bool isSplit) {
         if (m_canvas->isSharedSplitJunction(row)) {
             auto* fanout = new QLabel("Shared source fan-out: this path receives a full copy. Use the MIX controls to set its power and level.", m_paramContainer);
             fanout->setWordWrap(true);
-            fanout->setStyleSheet("color: #a6adb8; margin-bottom: 6px;");
-            fanout->setStyleSheet("color:#A6ADB8; background:#1B2028; border-left:2px solid #5A86B6; padding:6px 8px;");
+            fanout->setStyleSheet(UiScale::css("color: #a6adb8; margin-bottom: 6px;"));
+            fanout->setStyleSheet(UiScale::css("color:#A6ADB8; background:#1B2028; border-left:2px solid #5A86B6; padding:6px 8px;"));
             splitLayout->addWidget(fanout);
         } else {
             auto* typeRow = new QHBoxLayout(); typeRow->setSpacing(0);
@@ -7323,9 +7365,9 @@ void MainWindow::showRoutingNodeControls(int row, bool isSplit) {
             copy->setCheckable(true); ab->setCheckable(true); auto* modes = new QButtonGroup(splitCard); modes->setExclusive(true); modes->addButton(copy, static_cast<int>(GridRow::SplitMode::Copy)); modes->addButton(ab, static_cast<int>(GridRow::SplitMode::AB));
             (m_canvas->getSplitMode(row) == GridRow::SplitMode::Copy ? copy : ab)->setChecked(true);
             const QString segmentStyle = "QPushButton { background:#191B20; color:#AAB3C0; border:1px solid #3B404A; border-radius:0; padding:5px 12px; font-size:11px; } QPushButton:checked { background:#29445A; color:#DFF3FF; border-color:#5BAEDB; }";
-            copy->setStyleSheet(segmentStyle); ab->setStyleSheet(segmentStyle); typeRow->addWidget(copy); typeRow->addWidget(ab); typeRow->addStretch(); splitLayout->addLayout(typeRow);
+            copy->setStyleSheet(UiScale::css(segmentStyle)); ab->setStyleSheet(UiScale::css(segmentStyle)); typeRow->addWidget(copy); typeRow->addWidget(ab); typeRow->addStretch(); splitLayout->addLayout(typeRow);
 
-            auto* knobFlowHost = new QWidget(splitCard); knobFlowHost->setStyleSheet("background:transparent; border:none;"); auto* knobFlow = new FlowLayout(knobFlowHost, 8); splitLayout->addWidget(knobFlowHost);
+            auto* knobFlowHost = new QWidget(splitCard); knobFlowHost->setStyleSheet(UiScale::css("background:transparent; border:none;")); auto* knobFlow = new FlowLayout(knobFlowHost, 8); splitLayout->addWidget(knobFlowHost);
             auto [splitPosition, splitTitleLabel, splitPositionValue] = addKnob(knobFlow, "Route A / B", -100, 100,
                 qRound(m_canvas->getSplitPosition(row) * 100.0f), 0);
             auto updateSplitPosition = [splitPositionValue](int value) {
@@ -7335,8 +7377,8 @@ void MainWindow::showRoutingNodeControls(int row, bool isSplit) {
                 splitPosition->setEnabled(isAB);
                 splitTitleLabel->setEnabled(isAB);
                 splitPositionValue->setEnabled(isAB);
-                splitTitleLabel->setStyleSheet(isAB ? "color: #e2e8f0;" : "color: #4a5568;");
-                splitPositionValue->setStyleSheet(isAB ? "color: #35c7ff; font-weight: bold;" : "color: #4a5568; font-weight: bold;");
+                splitTitleLabel->setStyleSheet(UiScale::css(isAB ? "color: #e2e8f0;" : "color: #4a5568;"));
+                splitPositionValue->setStyleSheet(UiScale::css(isAB ? "color: #35c7ff; font-weight: bold;" : "color: #4a5568; font-weight: bold;"));
             };
             updateSplitPosition(splitPosition->value());
             updateABEnableState(m_canvas->getSplitMode(row) == GridRow::SplitMode::AB);
@@ -7356,23 +7398,23 @@ void MainWindow::showRoutingNodeControls(int row, bool isSplit) {
         connect(mainEnabled, &QCheckBox::toggled, this, [this, row](bool checked) { m_canvas->setMainInputEnabled(row, checked); });
         auto* hint = new QLabel("Drag SPLIT to move this source. A shared source is a fan-out; separate source gaps remain independent binary splits.", m_paramContainer);
         hint->setWordWrap(true);
-        hint->setStyleSheet("color: #8b929d; margin-top: 9px;");
+        hint->setStyleSheet(UiScale::css("color: #8b929d; margin-top: 9px;"));
         splitLayout->addWidget(hint);
         m_paramLayout->addWidget(splitCard);
     } else {
         auto* mixerHost = new QWidget(m_paramContainer);
         mixerHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-        mixerHost->setStyleSheet("background:transparent; border:none;");
+        mixerHost->setStyleSheet(UiScale::css("background:transparent; border:none;"));
         auto* mixerFlow = new FlowLayout(mixerHost, 10);
         auto makeStrip = [this, mixerFlow, mixerHost](const QString& title) {
             auto* card = new InspectorCard(mixerHost); card->setFixedWidth(250);
             auto* layout = new QVBoxLayout(card); layout->setContentsMargins(10, 9, 10, 10); layout->setSpacing(6);
             layout->setAlignment(Qt::AlignTop);
-            auto* heading = new QLabel(title.toUpper(), card); heading->setStyleSheet("color:#D8B8FF; font-size:10px; font-weight:bold; letter-spacing:1px;"); layout->addWidget(heading);
+            auto* heading = new QLabel(title.toUpper(), card); heading->setStyleSheet(UiScale::css("color:#D8B8FF; font-size:10px; font-weight:bold; letter-spacing:1px;")); layout->addWidget(heading);
             mixerFlow->addWidget(card); return layout;
         };
         auto* mainStrip = makeStrip(sharedMixer ? "Shared Path A" : "Path A");
-        auto* mainKnobs = new QWidget(m_paramContainer); mainKnobs->setStyleSheet("background:transparent; border:none;"); auto* mainKnobFlow = new FlowLayout(mainKnobs, 6); mainStrip->addWidget(mainKnobs);
+        auto* mainKnobs = new QWidget(m_paramContainer); mainKnobs->setStyleSheet(UiScale::css("background:transparent; border:none;")); auto* mainKnobFlow = new FlowLayout(mainKnobs, 6); mainStrip->addWidget(mainKnobs);
 
         auto [mainLevel, mainLevelTitle, mainLevelValue] = addKnob(mainKnobFlow, "Level", 0, 200,
             qRound(m_canvas->getMainMix(row) * 100.0f), 100, QColor("#B58BDE"));
@@ -7391,7 +7433,7 @@ void MainWindow::showRoutingNodeControls(int row, bool isSplit) {
             auto* branchEnabled = new QCheckBox("Enabled", m_paramContainer);
             branchEnabled->setChecked(m_canvas->isBranchEnabled(branchRow));
             strip->addWidget(branchEnabled);
-            auto* knobs = new QWidget(m_paramContainer); knobs->setStyleSheet("background:transparent; border:none;"); auto* knobFlow = new FlowLayout(knobs, 6); strip->addWidget(knobs);
+            auto* knobs = new QWidget(m_paramContainer); knobs->setStyleSheet(UiScale::css("background:transparent; border:none;")); auto* knobFlow = new FlowLayout(knobs, 6); strip->addWidget(knobs);
             auto [level, levelTitle, levelValue] = addKnob(knobFlow, "Level", 0, 200,
                 qRound(m_canvas->getMix(branchRow) * 100.0f), 100, QColor("#B58BDE"));
             auto updateLevel = [levelValue](int value) {
@@ -7426,8 +7468,8 @@ void MainWindow::showRoutingNodeControls(int row, bool isSplit) {
                     .arg(collapseReason);
                 auto* warning = new QLabel(warningText, m_paramContainer);
                 warning->setWordWrap(true);
-                warning->setStyleSheet(
-                    "color:#E2B66E; background:#2B261D; border:1px solid #5A4930; border-radius:4px; padding:5px 7px;");
+                warning->setStyleSheet(UiScale::css(
+                    "color:#E2B66E; background:#2B261D; border:1px solid #5A4930; border-radius:4px; padding:5px 7px;"));
                 warning->setToolTip(warningText);
                 strip->addWidget(warning);
                 pan->setToolTip(warningText);
@@ -7456,7 +7498,7 @@ void MainWindow::showRoutingNodeControls(int row, bool isSplit) {
             ? "This return is shared: Path A level is common, while every branch control remains independent. Drag a MIX handle away to create a separate mixer."
             : "Drag MIX to move this return. Path A level is independent until another section returns at this exact gap.", m_paramContainer);
         hint->setWordWrap(true);
-        hint->setStyleSheet("color: #8b929d; margin-top: 9px;");
+        hint->setStyleSheet(UiScale::css("color: #8b929d; margin-top: 9px;"));
         m_paramLayout->addWidget(hint);
 
         connect(mainLevel, &QDial::valueChanged, this, [this, row, updateMainLevel](int value) {
@@ -7468,10 +7510,10 @@ void MainWindow::showRoutingNodeControls(int row, bool isSplit) {
     auto* remove = new QPushButton("Remove Split Section", m_paramContainer);
     remove->setEnabled(true);
     remove->setToolTip("Remove this Split and Mixer along with all plugins on this branch.");
-    remove->setStyleSheet(
+    remove->setStyleSheet(UiScale::css(
         "QPushButton { background:transparent; color:#D9959D; border:1px solid #694047; border-radius:5px; padding:6px 10px; font-size:11px; }"
         "QPushButton:hover { background:#321F23; color:#FFB2BA; border-color:#95545D; }"
-    );
+    ));
     m_paramLayout->addWidget(remove, 0, Qt::AlignRight);
 
     connect(remove, &QPushButton::clicked, this, [this, row] {

@@ -1,4 +1,5 @@
 #include "PluginLoadingOverlay.h"
+#include "UiScale.h"
 
 #include <QApplication>
 #include <QEvent>
@@ -21,8 +22,8 @@ PluginLoadingOverlay::PluginLoadingOverlay(QWidget* parent) : QWidget(parent) {
 
     auto* card = new QFrame(this);
     card->setObjectName("loadingCard");
-    card->setStyleSheet(
-        "QFrame#loadingCard { background:#22242A; border:1px solid #363941; border-radius:10px; }");
+    card->setStyleSheet(UiScale::css(
+        "QFrame#loadingCard { background:#22242A; border:1px solid #363941; border-radius:10px; }"));
     card->setFixedWidth(360);
 
     auto* layout = new QVBoxLayout(card);
@@ -30,19 +31,19 @@ PluginLoadingOverlay::PluginLoadingOverlay(QWidget* parent) : QWidget(parent) {
     layout->setSpacing(6);
 
     auto* header = new QLabel("LOADING PLUGIN", card);
-    header->setStyleSheet("color:#00B0FF; font-size:10px; font-weight:bold; letter-spacing:1.2px;"
-                          " background:transparent; border:none;");
+    header->setStyleSheet(UiScale::css("color:#00B0FF; font-size:10px; font-weight:bold; letter-spacing:1.2px;"
+                          " background:transparent; border:none;"));
     m_title = new QLabel(card);
-    m_title->setStyleSheet("color:#E0E0E0; font-size:16px; font-weight:bold; background:transparent; border:none;");
+    m_title->setStyleSheet(UiScale::css("color:#E0E0E0; font-size:16px; font-weight:bold; background:transparent; border:none;"));
     m_title->setWordWrap(true);
     m_detail = new QLabel(card);
-    m_detail->setStyleSheet("color:#99A2B0; font-size:11px; background:transparent; border:none;");
+    m_detail->setStyleSheet(UiScale::css("color:#99A2B0; font-size:11px; background:transparent; border:none;"));
     m_detail->setWordWrap(true);
 
     auto* accent = new QFrame(card);
     accent->setFixedHeight(3);
-    accent->setStyleSheet("background:qlineargradient(x1:0, y1:0, x2:1, y2:0,"
-                          " stop:0 #00B0FF, stop:1 #009688); border:none; border-radius:1px;");
+    accent->setStyleSheet(UiScale::css("background:qlineargradient(x1:0, y1:0, x2:1, y2:0,"
+                          " stop:0 #00B0FF, stop:1 #009688); border:none; border-radius:1px;"));
 
     layout->addWidget(header);
     layout->addWidget(m_title);

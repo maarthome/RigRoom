@@ -2,6 +2,7 @@
 // the user added. Group: Tone shows one row per tone or pack (files live in
 // the panel); other groupings keep a header plus one row per file.
 #include "Tone3000Dialog.h"
+#include "UiScale.h"
 #include "BrowserStyle.h"
 #include "CaptureLibrary.h"
 #include "AddToLibraryDialog.h"
@@ -93,9 +94,9 @@ QWidget* Tone3000Dialog::buildTabs() {
         button->setAutoDefault(false);
         layout->addWidget(button);
     }
-    m_libraryTab->setStyleSheet(segmentStyle() + "QPushButton { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }");
-    m_onlineTab->setStyleSheet(segmentStyle() + "QPushButton { border-top-right-radius: 6px; border-bottom-right-radius: 6px; "
-                                                "border-left: none; }");
+    m_libraryTab->setStyleSheet(UiScale::css(segmentStyle() + "QPushButton { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }"));
+    m_onlineTab->setStyleSheet(UiScale::css(segmentStyle() + "QPushButton { border-top-right-radius: 6px; border-bottom-right-radius: 6px; "
+                                                "border-left: none; }"));
     connect(m_libraryTab, &QPushButton::clicked, this, [this]() {
         m_tabFromSettings = true;
         setTab(Tab::Library);
@@ -298,17 +299,17 @@ QWidget* Tone3000Dialog::buildLibraryChips() {
     row->addWidget(m_selectionButton);
 
     m_libraryCount = new QLabel(m_libraryChipRow);
-    m_libraryCount->setStyleSheet("color: #8A8A96; font-size: 11px;");
+    m_libraryCount->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 11px;"));
     row->addWidget(m_libraryCount);
 
     m_libraryAddButton = new QToolButton(m_libraryChipRow);
     m_libraryAddButton->setText(QString::fromUtf8("+ Add  ▾"));
     m_libraryAddButton->setPopupMode(QToolButton::InstantPopup);
     m_libraryAddButton->setCursor(Qt::PointingHandCursor);
-    m_libraryAddButton->setStyleSheet(
+    m_libraryAddButton->setStyleSheet(UiScale::css(
         "QToolButton { background: #00897B; color: white; font-weight: bold; border: none; border-radius: 12px; "
         "padding: 4px 14px; font-size: 11px; } QToolButton:hover { background: #009688; }"
-        "QToolButton::menu-indicator { image: none; width: 0; }");
+        "QToolButton::menu-indicator { image: none; width: 0; }"));
     auto* add = new QMenu(m_libraryAddButton);
     connect(add->addAction(QString::fromUtf8("Files…")), &QAction::triggered, this, &Tone3000Dialog::addFilesToLibrary);
     connect(add->addAction(QString::fromUtf8("Folder…")), &QAction::triggered, this, &Tone3000Dialog::addFolderToLibrary);
@@ -409,9 +410,9 @@ QWidget* Tone3000Dialog::buildImportBanner() {
     m_importBanner = new QPushButton(this);
     m_importBanner->setCursor(Qt::PointingHandCursor);
     m_importBanner->setAutoDefault(false);
-    m_importBanner->setStyleSheet(
+    m_importBanner->setStyleSheet(UiScale::css(
         "QPushButton { background: #13232C; color: #D8E8F0; border: 1px solid #0B4F6C; border-radius: 6px; "
-        "padding: 10px 14px; text-align: left; font-size: 12px; } QPushButton:hover { border-color: #00B0FF; }");
+        "padding: 10px 14px; text-align: left; font-size: 12px; } QPushButton:hover { border-color: #00B0FF; }"));
     connect(m_importBanner, &QPushButton::clicked, this, &Tone3000Dialog::importEarlierDownloads);
     m_importBanner->hide();
     return m_importBanner;
@@ -971,7 +972,7 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
     layout->setSpacing(6);
     auto sectionLabel = [this](const QString& text) {
         auto* label = new QLabel(text, m_libraryInfo);
-        label->setStyleSheet("color: #8A8A96; font-size: 10px; font-weight: bold; margin-top: 4px;");
+        label->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 10px; font-weight: bold; margin-top: 4px;"));
         return label;
     };
 
@@ -981,11 +982,11 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
     bar->setContentsMargins(0, 8, 0, 0);
     auto* unsaved = new QLabel(m_editBar);
     unsaved->setObjectName("unsaved");
-    unsaved->setStyleSheet("color: #8A8A96; font-size: 11px;");
+    unsaved->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 11px;"));
     auto* discard = new QPushButton("Cancel", m_editBar);
     auto* save = new QPushButton("Save", m_editBar);
-    discard->setStyleSheet(BrowserStyle::kSecondaryButton);
-    save->setStyleSheet(BrowserStyle::kPrimaryButton);
+    discard->setStyleSheet(UiScale::css(BrowserStyle::kSecondaryButton));
+    save->setStyleSheet(UiScale::css(BrowserStyle::kPrimaryButton));
     discard->setAutoDefault(false);
     save->setAutoDefault(false);
     connect(discard, &QPushButton::clicked, this, [this]() {
@@ -1029,7 +1030,7 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
 
     layout->addWidget(sectionLabel("FOLDER"));
     m_folderCombo = new QComboBox(m_libraryInfo);
-    m_folderCombo->setStyleSheet("font-size: 12px;");
+    m_folderCombo->setStyleSheet(UiScale::css("font-size: 12px;"));
     connect(m_folderCombo, &QComboBox::activated, this, [this](int index) {
         QString folder = m_folderCombo->itemData(index).toString();
         if (folder.isEmpty()) folder = askNewFolder();
@@ -1041,7 +1042,7 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
     layout->addWidget(sectionLabel("PACK"));
     auto* packRow = new QHBoxLayout();
     m_packCombo = new QComboBox(m_libraryInfo);
-    m_packCombo->setStyleSheet("font-size: 12px;");
+    m_packCombo->setStyleSheet(UiScale::css("font-size: 12px;"));
     m_packCombo->setToolTip("Captures that belong together, like the variants of a TONE3000 tone");
     connect(m_packCombo, &QComboBox::activated, this, [this](int index) {
         QString id = m_packCombo->itemData(index).toString();
@@ -1052,7 +1053,7 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
     auto* editPackButton = new QToolButton(m_libraryInfo);
     editPackButton->setText(QString::fromUtf8("Edit…"));
     editPackButton->setToolTip("Name, creator and description of the pack");
-    editPackButton->setStyleSheet("QToolButton { color: #00B0FF; border: none; background: transparent; font-size: 11px; }");
+    editPackButton->setStyleSheet(UiScale::css("QToolButton { color: #00B0FF; border: none; background: transparent; font-size: 11px; }"));
     connect(editPackButton, &QToolButton::clicked, this, [this]() {
         editPack(CaptureLibrary::instance().packOf(activeLibraryPath()));
     });
@@ -1062,7 +1063,7 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
 
     layout->addWidget(sectionLabel("NAME"));
     m_nameEdit = new QLineEdit(m_libraryInfo);
-    m_nameEdit->setStyleSheet("QLineEdit { padding: 4px 8px; font-size: 12px; }");
+    m_nameEdit->setStyleSheet(UiScale::css("QLineEdit { padding: 4px 8px; font-size: 12px; }"));
     m_nameEdit->setToolTip("Your name for this file; clear it to use the original");
     connect(m_nameEdit, &QLineEdit::textEdited, this, [this](const QString& text) {
         m_edit.name = text;
@@ -1074,7 +1075,7 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
     m_libraryTagsLabel = new QLabel(m_libraryInfo);
     m_libraryTagsLabel->setTextFormat(Qt::RichText);
     m_libraryTagsLabel->setWordWrap(true);
-    m_libraryTagsLabel->setStyleSheet("font-size: 11px;");
+    m_libraryTagsLabel->setStyleSheet(UiScale::css("font-size: 11px;"));
     m_libraryTagsLabel->setToolTip("Click a tag to filter by it, × to remove it from this file");
     connect(m_libraryTagsLabel, &QLabel::linkActivated, this, [this](const QString& link) {
         const QString tag = QUrl::fromPercentEncoding(link.mid(link.indexOf(':') + 1).toUtf8());
@@ -1088,7 +1089,7 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
     layout->addWidget(m_libraryTagsLabel);
     m_addTagEdit = new QLineEdit(m_libraryInfo);
     m_addTagEdit->setPlaceholderText(QString::fromUtf8("+ Add a tag…"));
-    m_addTagEdit->setStyleSheet("QLineEdit { padding: 4px 8px; font-size: 12px; }");
+    m_addTagEdit->setStyleSheet(UiScale::css("QLineEdit { padding: 4px 8px; font-size: 12px; }"));
     auto* completer = new QCompleter(new QStringListModel(m_addTagEdit), m_addTagEdit);
     completer->setCaseSensitivity(Qt::CaseInsensitive);
     completer->setFilterMode(Qt::MatchContains);
@@ -1121,11 +1122,11 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
     m_gearTone->addItem("From the file", QString());
     for (const QString& tone : NamMetadata::vocabulary(TagCategory::Tone)) m_gearTone->addItem(NamMetadata::tagLabel(tone), tone);
     for (QWidget* w : std::initializer_list<QWidget*>{m_gearType, m_gearMake, m_gearModel, m_gearTone}) {
-        w->setStyleSheet("font-size: 12px;");
+        w->setStyleSheet(UiScale::css("font-size: 12px;"));
     }
     auto formLabel = [this](const QString& text) {
         auto* label = new QLabel(text, m_libraryInfo);
-        label->setStyleSheet("color: #9FA8B8; font-size: 12px;");
+        label->setStyleSheet(UiScale::css("color: #9FA8B8; font-size: 12px;"));
         return label;
     };
     gear->addRow(formLabel("Type"), m_gearType);
@@ -1146,8 +1147,8 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
     m_notesEdit = new QPlainTextEdit(m_libraryInfo);
     m_notesEdit->setPlaceholderText(QString::fromUtf8("Anything worth remembering: settings, songs, what it pairs with…"));
     m_notesEdit->setFixedHeight(70);
-    m_notesEdit->setStyleSheet("QPlainTextEdit { background: #1F1F24; color: #EDEDF2; border: 1px solid #34343C; "
-                               "border-radius: 6px; font-size: 12px; } QPlainTextEdit:focus { border-color: #00B0FF; }");
+    m_notesEdit->setStyleSheet(UiScale::css("QPlainTextEdit { background: #1F1F24; color: #EDEDF2; border: 1px solid #34343C; "
+                               "border-radius: 6px; font-size: 12px; } QPlainTextEdit:focus { border-color: #00B0FF; }"));
     connect(m_notesEdit, &QPlainTextEdit::textChanged, this, [this]() {
         if (m_notesEdit->signalsBlocked()) return;
         m_edit.notes = m_notesEdit->toPlainText();
@@ -1164,7 +1165,7 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
     m_summaryTags = new QLabel(m_librarySummary);
     m_summaryTags->setTextFormat(Qt::RichText);
     m_summaryTags->setWordWrap(true);
-    m_summaryTags->setStyleSheet("font-size: 11px;");
+    m_summaryTags->setStyleSheet(UiScale::css("font-size: 11px;"));
     connect(m_summaryTags, &QLabel::linkActivated, this, [this](const QString& link) {
         addTagFilter(QUrl::fromPercentEncoding(link.mid(link.indexOf(':') + 1).toUtf8()));
     });
@@ -1172,12 +1173,12 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
     m_factsLabel = new QLabel(m_librarySummary);
     m_factsLabel->setWordWrap(true);
     m_factsLabel->setTextFormat(Qt::RichText);
-    m_factsLabel->setStyleSheet("color: #B8B8C4; font-size: 12px;");
+    m_factsLabel->setStyleSheet(UiScale::css("color: #B8B8C4; font-size: 12px;"));
     m_factsLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     summary->addWidget(m_factsLabel);
     m_summaryNotes = new QLabel(m_librarySummary);
     m_summaryNotes->setWordWrap(true);
-    m_summaryNotes->setStyleSheet("color: #C8C8D0; font-size: 12px; font-style: italic;");
+    m_summaryNotes->setStyleSheet(UiScale::css("color: #C8C8D0; font-size: 12px; font-style: italic;"));
     m_summaryNotes->setTextInteractionFlags(Qt::TextSelectableByMouse);
     summary->addWidget(m_summaryNotes);
 
@@ -1185,7 +1186,7 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
     buttons->setSpacing(6);
     auto* edit = new QPushButton(QString::fromUtf8("Edit…"), m_librarySummary);
     edit->setToolTip("Name, rating, tags, gear, notes, folder and pack of this capture");
-    edit->setStyleSheet(BrowserStyle::kSecondaryButton);
+    edit->setStyleSheet(UiScale::css(BrowserStyle::kSecondaryButton));
     edit->setAutoDefault(false);
     connect(edit, &QPushButton::clicked, this, [this]() {
         m_editing = true;
@@ -1193,7 +1194,7 @@ QWidget* Tone3000Dialog::buildLibraryInfo() {
         showLibraryDetails();
     });
     m_showFolderButton = new QPushButton(QString::fromUtf8("More  ▾"), m_librarySummary);
-    m_showFolderButton->setStyleSheet(BrowserStyle::kSecondaryButton);
+    m_showFolderButton->setStyleSheet(UiScale::css(BrowserStyle::kSecondaryButton));
     m_showFolderButton->setAutoDefault(false);
     auto* more = new QMenu(m_showFolderButton);
     connect(more->addAction("Show in Folder"), &QAction::triggered, this, [this]() {
@@ -1277,8 +1278,8 @@ void Tone3000Dialog::showLibraryDetails() {
     for (int i = 0; i < m_ratingButtons.size(); ++i) {
         const bool lit = i < rating;
         m_ratingButtons[i]->setText(lit ? QString::fromUtf8("★") : QString::fromUtf8("☆"));
-        m_ratingButtons[i]->setStyleSheet(QString("QToolButton { color: %1; font-size: 18px; border: none; padding: 0 2px; }")
-                                              .arg(lit ? "#FFD54F" : "#4A4A54"));
+        m_ratingButtons[i]->setStyleSheet(UiScale::css(QString("QToolButton { color: %1; font-size: 18px; border: none; padding: 0 2px; }")
+                                              .arg(lit ? "#FFD54F" : "#4A4A54")));
     }
     {
         const QSignalBlocker blocker(m_folderCombo);
@@ -1422,14 +1423,14 @@ void Tone3000Dialog::editPack(const QString& id) {
     if (pack.id.isEmpty()) return;
     QDialog dialog(this);
     dialog.setWindowTitle("Edit Pack");
-    dialog.setStyleSheet(BrowserStyle::kStyleSheet);
+    dialog.setStyleSheet(UiScale::css(BrowserStyle::kStyleSheet));
     auto* layout = new QVBoxLayout(&dialog);
     auto* form = new QFormLayout();
     auto* title = new QLineEdit(pack.title, &dialog);
     auto* creator = new QLineEdit(pack.creator, &dialog);
     creator->setPlaceholderText("Who made the captures");
     auto* description = new QPlainTextEdit(pack.description, &dialog);
-    description->setStyleSheet("QPlainTextEdit { background: #1F1F24; color: #EDEDF2; border: 1px solid #34343C; border-radius: 6px; }");
+    description->setStyleSheet(UiScale::css("QPlainTextEdit { background: #1F1F24; color: #EDEDF2; border: 1px solid #34343C; border-radius: 6px; }"));
     description->setFixedHeight(110);
     form->addRow("Name", title);
     form->addRow("Creator", creator);
@@ -1439,7 +1440,7 @@ void Tone3000Dialog::editPack(const QString& id) {
     buttons->addStretch();
     auto* cancel = new QPushButton("Cancel", &dialog);
     auto* save = new QPushButton("Save", &dialog);
-    save->setStyleSheet(BrowserStyle::kPrimaryButton);
+    save->setStyleSheet(UiScale::css(BrowserStyle::kPrimaryButton));
     save->setDefault(true);
     connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
     connect(save, &QPushButton::clicked, &dialog, &QDialog::accept);
@@ -1464,18 +1465,18 @@ QWidget* Tone3000Dialog::buildBatchInfo() {
     layout->setSpacing(6);
     m_batchTitle = new QLabel(m_batchInfo);
     m_batchTitle->setWordWrap(true);
-    m_batchTitle->setStyleSheet("font-size: 17px; font-weight: bold; color: #F2F2F5;");
+    m_batchTitle->setStyleSheet(UiScale::css("font-size: 17px; font-weight: bold; color: #F2F2F5;"));
     layout->addWidget(m_batchTitle);
     auto* hint = new QLabel(QString::fromUtf8("Changes go to every selected capture when you apply them. Fields left on "
                                               "“Keep as is” stay as each capture has them."), m_batchInfo);
     hint->setWordWrap(true);
-    hint->setStyleSheet("color: #8A8A96; font-size: 11px;");
+    hint->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 11px;"));
     layout->addWidget(hint);
 
     const QString keep = QString::fromUtf8("Keep as is");
     auto combo = [this]() {
         auto* c = new QComboBox(m_batchInfo);
-        c->setStyleSheet("font-size: 12px;");
+        c->setStyleSheet(UiScale::css("font-size: 12px;"));
         c->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
         c->setMinimumContentsLength(10);
         c->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -1493,7 +1494,7 @@ QWidget* Tone3000Dialog::buildBatchInfo() {
     form->setVerticalSpacing(6);
     auto label = [this](const QString& text) {
         auto* l = new QLabel(text, m_batchInfo);
-        l->setStyleSheet("color: #9FA8B8; font-size: 12px;");
+        l->setStyleSheet(UiScale::css("color: #9FA8B8; font-size: 12px;"));
         return l;
     };
 
@@ -1580,12 +1581,12 @@ QWidget* Tone3000Dialog::buildBatchInfo() {
     layout->addLayout(form);
 
     auto* tagsTitle = new QLabel("TAGS ON ALL OF THEM", m_batchInfo);
-    tagsTitle->setStyleSheet("color: #8A8A96; font-size: 10px; font-weight: bold; margin-top: 6px;");
+    tagsTitle->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 10px; font-weight: bold; margin-top: 6px;"));
     layout->addWidget(tagsTitle);
     m_batchTags = new QLabel(m_batchInfo);
     m_batchTags->setTextFormat(Qt::RichText);
     m_batchTags->setWordWrap(true);
-    m_batchTags->setStyleSheet("font-size: 11px;");
+    m_batchTags->setStyleSheet(UiScale::css("font-size: 11px;"));
     connect(m_batchTags, &QLabel::linkActivated, this, [this, changed](const QString& link) {
         const QString tag = QUrl::fromPercentEncoding(link.mid(link.indexOf(':') + 1).toUtf8());
         if (link.startsWith("remove:")) m_batchChanges.removeTags << tag;
@@ -1596,7 +1597,7 @@ QWidget* Tone3000Dialog::buildBatchInfo() {
     layout->addWidget(m_batchTags);
     m_batchAddTag = new QLineEdit(m_batchInfo);
     m_batchAddTag->setPlaceholderText(QString::fromUtf8("+ Add a tag to all…"));
-    m_batchAddTag->setStyleSheet("QLineEdit { padding: 4px 8px; font-size: 12px; }");
+    m_batchAddTag->setStyleSheet(UiScale::css("QLineEdit { padding: 4px 8px; font-size: 12px; }"));
     connect(m_batchAddTag, &QLineEdit::returnPressed, this, [this, changed]() {
         const QString tag = NamMetadata::normalizeTag(m_batchAddTag->text());
         m_batchAddTag->clear();
@@ -1611,14 +1612,14 @@ QWidget* Tone3000Dialog::buildBatchInfo() {
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(6);
     m_batchReset = new QPushButton("Discard", m_batchInfo);
-    m_batchReset->setStyleSheet(BrowserStyle::kSecondaryButton);
+    m_batchReset->setStyleSheet(UiScale::css(BrowserStyle::kSecondaryButton));
     m_batchReset->setAutoDefault(false);
     connect(m_batchReset, &QPushButton::clicked, this, [this]() {
         m_batchChanges = {};
         showBatchDetails();
     });
     m_batchApply = new QPushButton(m_batchInfo);
-    m_batchApply->setStyleSheet(BrowserStyle::kPrimaryButton);
+    m_batchApply->setStyleSheet(UiScale::css(BrowserStyle::kPrimaryButton));
     m_batchApply->setAutoDefault(false);
     connect(m_batchApply, &QPushButton::clicked, this, [this]() {
         const QStringList keys = selectedKeys();
@@ -1628,7 +1629,7 @@ QWidget* Tone3000Dialog::buildBatchInfo() {
         setStatus(QString("Changed %1 captures.").arg(keys.size()));
     });
     auto* remove = new QPushButton(QString::fromUtf8("Remove…"), m_batchInfo);
-    remove->setStyleSheet(BrowserStyle::kSecondaryButton);
+    remove->setStyleSheet(UiScale::css(BrowserStyle::kSecondaryButton));
     remove->setAutoDefault(false);
     connect(remove, &QPushButton::clicked, this, [this]() { removeFromLibrary(selectedKeys()); });
     buttons->addStretch();
@@ -1770,8 +1771,8 @@ void Tone3000Dialog::libraryDragMoved(const QPoint& global) {
     if (!m_dragBadge) {
         m_dragBadge = new QLabel(this);
         m_dragBadge->setAttribute(Qt::WA_TransparentForMouseEvents);
-        m_dragBadge->setStyleSheet("QLabel { background: rgba(11, 79, 108, 215); color: white; border: 1px solid #00B0FF; "
-                                   "border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: bold; }");
+        m_dragBadge->setStyleSheet(UiScale::css("QLabel { background: rgba(11, 79, 108, 215); color: white; border: 1px solid #00B0FF; "
+                                   "border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: bold; }"));
     }
     if (!m_dragBadge->isVisible()) {
         QString text = keys.size() == 1 ? m_selected.title : QString("%1 captures").arg(keys.size());

@@ -1,4 +1,5 @@
 #include "PresetBrowser.h"
+#include "UiScale.h"
 #include "../preset/PresetLibrary.h"
 #include <QDropEvent>
 #include <QHBoxLayout>
@@ -208,7 +209,7 @@ PresetBrowser::PresetBrowser(PresetLibrary& library, int currentSlot, QWidget* p
     // Drop-down under the bank selector; closes when you click elsewhere.
     setWindowFlags(Qt::Popup);
     setMinimumSize(560, 360);
-    setStyleSheet(
+    setStyleSheet(UiScale::css(
         "QDialog { background-color: #16161A; border: 1px solid #3A3A42; border-radius: 6px; }"
         "QLineEdit { background-color: #242528; color: #E0E0E0; border: 1px solid #333438; border-radius: 4px; padding: 7px 10px; font-size: 13px; }"
         "QLineEdit:focus { border-color: #00B0FF; }"
@@ -216,7 +217,7 @@ PresetBrowser::PresetBrowser(PresetLibrary& library, int currentSlot, QWidget* p
         "QHeaderView::section { background-color: #202024; color: #8A8A96; border: none; border-right: 1px solid #2A2A30; border-bottom: 1px solid #2A2A30; padding: 4px 10px; font-weight: bold; font-size: 12px; }"
         "QHeaderView::section:vertical { color: #C8C8D0; font-size: 13px; }"
         "QLabel { color: #8A8A96; font-size: 12px; }"
-    );
+    ));
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(14, 14, 14, 12);
@@ -277,13 +278,13 @@ PresetBrowser::PresetBrowser(PresetLibrary& library, int currentSlot, QWidget* p
     auto* undoLayout = new QHBoxLayout(m_undoBar);
     undoLayout->setContentsMargins(0, 0, 0, 0);
     m_undoLabel = new QLabel(m_undoBar);
-    m_undoLabel->setStyleSheet("QLabel { color: #C8C8D0; font-size: 12px; }");
+    m_undoLabel->setStyleSheet(UiScale::css("QLabel { color: #C8C8D0; font-size: 12px; }"));
     undoLayout->addWidget(m_undoLabel, 1);
     auto* undoBtn = new QPushButton("Undo  (Ctrl+Z)", m_undoBar);
     undoBtn->setCursor(Qt::PointingHandCursor);
-    undoBtn->setStyleSheet(
+    undoBtn->setStyleSheet(UiScale::css(
         "QPushButton { background-color: #242528; color: #00B0FF; border: 1px solid #333438; border-radius: 4px; padding: 4px 12px; font-size: 12px; }"
-        "QPushButton:hover { background-color: #303236; color: white; }");
+        "QPushButton:hover { background-color: #303236; color: white; }"));
     undoLayout->addWidget(undoBtn);
     m_undoBar->hide();
     layout->addWidget(m_undoBar);
@@ -397,14 +398,14 @@ void PresetBrowser::setNormalHint() {
 
 void PresetBrowser::showBanner(const QString& text, const QString& actionText) {
     const bool danger = !actionText.isEmpty();
-    m_banner->setStyleSheet(QString(
+    m_banner->setStyleSheet(UiScale::css(QString(
         "#gridBanner { background-color: %1; border: 1px solid %2; border-radius: 4px; }"
         "QLabel { color: #F2F2F5; font-size: 13px; font-weight: bold; }"
         "QPushButton { background-color: transparent; color: #E6E6EA; border: 1px solid %3; border-radius: 4px; padding: 4px 14px; font-size: 12px; }"
         "QPushButton:hover { background-color: rgba(255,255,255,0.08); }"
         "#bannerAction { background-color: #C62828; border-color: #C62828; color: white; font-weight: bold; }"
         "#bannerAction:hover { background-color: #E53935; }")
-        .arg(danger ? "#3A1618" : "#0B3442", danger ? "#C62828" : "#00B0FF", danger ? "#6A3A3C" : "#3A6A7A"));
+        .arg(danger ? "#3A1618" : "#0B3442", danger ? "#C62828" : "#00B0FF", danger ? "#6A3A3C" : "#3A6A7A")));
     m_bannerLabel->setText(text);
     m_bannerAction->setText(actionText);
     m_bannerAction->setVisible(danger);
@@ -532,7 +533,7 @@ void PresetBrowser::startRename(int slot) {
     auto* editor = new QLineEdit(m_table->viewport());
     editor->setText(slot == m_pendingSlot && !m_library.isOccupied(slot) ? m_pendingName : m_library.nameAt(slot));
     editor->setGeometry(m_table->visualItemRect(item).adjusted(4, 8, -4, -8));
-    editor->setStyleSheet("QLineEdit { background-color: #1E1E22; color: white; border: 1px solid #00B0FF; border-radius: 4px; padding: 2px 8px; font-size: 14px; font-weight: bold; }");
+    editor->setStyleSheet(UiScale::css("QLineEdit { background-color: #1E1E22; color: white; border: 1px solid #00B0FF; border-radius: 4px; padding: 2px 8px; font-size: 14px; font-weight: bold; }"));
     editor->selectAll();
     editor->show();
     editor->setFocus();
@@ -673,10 +674,10 @@ void PresetBrowser::applyFilter() {
 void PresetBrowser::showSlotMenu(int slot, const QPoint& globalPos) {
     if (!m_library.isValidSlot(slot)) return;
     QMenu menu(this);
-    menu.setStyleSheet(
+    menu.setStyleSheet(UiScale::css(
         "QMenu { background-color: #1E1E22; color: #E0E0E0; border: 1px solid #333333; }"
         "QMenu::item:selected { background-color: #007ACC; color: white; }"
-    );
+    ));
     const QString label = m_library.slotLabel(slot);
     if (m_library.isOccupied(slot)) {
         QAction* loadAct = menu.addAction(QString("Load %1").arg(label));

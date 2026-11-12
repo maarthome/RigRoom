@@ -1,4 +1,5 @@
 #include "Tone3000Dialog.h"
+#include "UiScale.h"
 #include "AddToLibraryDialog.h"
 #include "BrowserStyle.h"
 #include "CaptureLibrary.h"
@@ -310,7 +311,7 @@ Tone3000Dialog::~Tone3000Dialog() = default;
 
 void Tone3000Dialog::buildUi() {
     setWindowTitle(m_mode == Mode::Ir ? "TONE3000 Impulse Responses" : "TONE3000 NAM Captures");
-    setStyleSheet(BrowserStyle::kStyleSheet);
+    setStyleSheet(UiScale::css(BrowserStyle::kStyleSheet));
     const QRect available = QGuiApplication::primaryScreen()->availableGeometry();
     resize(std::min(1240, available.width() - 80), std::min(780, available.height() - 80));
 
@@ -348,9 +349,9 @@ void Tone3000Dialog::buildUi() {
 QWidget* Tone3000Dialog::buildApiKeyBanner() {
     m_apiKeyBanner = new QWidget(this);
     m_apiKeyBanner->setObjectName("apiKeyBanner");
-    m_apiKeyBanner->setStyleSheet(
+    m_apiKeyBanner->setStyleSheet(UiScale::css(
         "QWidget#apiKeyBanner { background-color: #13232C; border: 1px solid #0B4F6C; border-radius: 6px; }"
-        "QLabel { color: #D8D8DE; font-size: 12px; }");
+        "QLabel { color: #D8D8DE; font-size: 12px; }"));
     auto* layout = new QHBoxLayout(m_apiKeyBanner);
     layout->setContentsMargins(12, 8, 12, 8);
     layout->setSpacing(10);
@@ -366,7 +367,7 @@ QWidget* Tone3000Dialog::buildApiKeyBanner() {
     keyInput->setEchoMode(QLineEdit::Password);
     keyInput->setFixedWidth(240);
     auto* save = new QPushButton("Save Key", m_apiKeyBanner);
-    save->setStyleSheet(BrowserStyle::kPrimaryButton);
+    save->setStyleSheet(UiScale::css(BrowserStyle::kPrimaryButton));
     layout->addWidget(text, 1);
     layout->addWidget(keyInput);
     layout->addWidget(save);
@@ -572,7 +573,7 @@ QWidget* Tone3000Dialog::buildCenter() {
     m_resetChip = new QToolButton(m_chipRow);
     m_resetChip->setText(QString::fromUtf8("Reset filters"));
     m_resetChip->setCursor(Qt::PointingHandCursor);
-    m_resetChip->setStyleSheet("QToolButton { color: #00B0FF; border: none; background: transparent; font-size: 11px; }");
+    m_resetChip->setStyleSheet(UiScale::css("QToolButton { color: #00B0FF; border: none; background: transparent; font-size: 11px; }"));
     connect(m_resetChip, &QToolButton::clicked, this, [this]() {
         m_query.resetFilters();
         onQueryEdited();
@@ -580,7 +581,7 @@ QWidget* Tone3000Dialog::buildCenter() {
     chips->addWidget(m_resetChip);
     chips->addStretch();
     m_count = new QLabel(m_chipRow);
-    m_count->setStyleSheet("color: #8A8A96; font-size: 11px;");
+    m_count->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 11px;"));
     chips->addWidget(m_count);
     layout->addWidget(m_chipRow);
     layout->addWidget(buildLibraryChips());
@@ -589,23 +590,23 @@ QWidget* Tone3000Dialog::buildCenter() {
     // Creator header: shown while browsing one creator's uploads.
     m_creatorHeader = new QWidget(center);
     m_creatorHeader->setObjectName("creatorHeader");
-    m_creatorHeader->setStyleSheet("QWidget#creatorHeader { background: #17171B; border: 1px solid #26262C; border-radius: 6px; }");
+    m_creatorHeader->setStyleSheet(UiScale::css("QWidget#creatorHeader { background: #17171B; border: 1px solid #26262C; border-radius: 6px; }"));
     auto* creatorLayout = new QHBoxLayout(m_creatorHeader);
     creatorLayout->setContentsMargins(10, 8, 10, 8);
     creatorLayout->setSpacing(12);
     m_creatorAvatar = new QLabel(m_creatorHeader);
     m_creatorAvatar->setFixedSize(40, 40);
     m_creatorAvatar->setAlignment(Qt::AlignCenter);
-    m_creatorAvatar->setStyleSheet("background: #22303A; color: #80D8FF; border-radius: 20px; font-size: 16px; font-weight: bold;");
+    m_creatorAvatar->setStyleSheet(UiScale::css("background: #22303A; color: #80D8FF; border-radius: 20px; font-size: 16px; font-weight: bold;"));
     creatorLayout->addWidget(m_creatorAvatar);
     auto* creatorText = new QVBoxLayout();
     creatorText->setSpacing(2);
     m_creatorName = new QLabel(m_creatorHeader);
     m_creatorName->setTextFormat(Qt::RichText);
     m_creatorName->setOpenExternalLinks(true);
-    m_creatorName->setStyleSheet("font-size: 14px; color: #F2F2F5;");
+    m_creatorName->setStyleSheet(UiScale::css("font-size: 14px; color: #F2F2F5;"));
     m_creatorStats = new QLabel(m_creatorHeader);
-    m_creatorStats->setStyleSheet("font-size: 11px; color: #9FA8B8;");
+    m_creatorStats->setStyleSheet(UiScale::css("font-size: 11px; color: #9FA8B8;"));
     creatorText->addWidget(m_creatorName);
     creatorText->addWidget(m_creatorStats);
     creatorLayout->addLayout(creatorText, 1);
@@ -732,10 +733,10 @@ QWidget* Tone3000Dialog::buildCenter() {
 
     auto* footer = new QHBoxLayout();
     auto* hint = new QLabel(QString::fromUtf8("↑ ↓ select · click a variant to hear it · Enter or double-click loads · ☆ favorite"), center);
-    hint->setStyleSheet("color: #6E6E7A; font-size: 11px;");
+    hint->setStyleSheet(UiScale::css("color: #6E6E7A; font-size: 11px;"));
     footer->addWidget(hint, 1);
     m_status = new QLabel(center);
-    m_status->setStyleSheet("color: #8A8A96; font-size: 11px;");
+    m_status->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 11px;"));
     m_status->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     footer->addWidget(m_status);
     layout->addLayout(footer);
@@ -903,9 +904,9 @@ QWidget* Tone3000Dialog::buildInfoPanel() {
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setFixedWidth(400);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scroll->setStyleSheet("QScrollArea { background: transparent; }");
+    scroll->setStyleSheet(UiScale::css("QScrollArea { background: transparent; }"));
     auto* panel = new QWidget();
-    panel->setStyleSheet("background: transparent;");
+    panel->setStyleSheet(UiScale::css("background: transparent;"));
     auto* panelLayout = new QVBoxLayout(panel);
     panelLayout->setContentsMargins(0, 0, 4, 0);
     panelLayout->setSpacing(0);
@@ -915,7 +916,7 @@ QWidget* Tone3000Dialog::buildInfoPanel() {
                              panel);
     static_cast<QLabel*>(m_infoEmpty)->setWordWrap(true);
     static_cast<QLabel*>(m_infoEmpty)->setAlignment(Qt::AlignCenter);
-    m_infoEmpty->setStyleSheet("color: #6E6E7A; font-size: 12px; background: #17171B; border-radius: 10px; padding: 24px;");
+    m_infoEmpty->setStyleSheet(UiScale::css("color: #6E6E7A; font-size: 12px; background: #17171B; border-radius: 10px; padding: 24px;"));
     m_infoEmpty->setMinimumHeight(190);
     panelLayout->addWidget(m_infoEmpty);
 
@@ -926,16 +927,16 @@ QWidget* Tone3000Dialog::buildInfoPanel() {
     m_image = new QLabel(m_infoContent);
     m_image->setFixedSize(380, 214);
     m_image->setAlignment(Qt::AlignCenter);
-    m_image->setStyleSheet("background: #1B1B20; border-radius: 10px; color: #6E6E7A;");
+    m_image->setStyleSheet(UiScale::css("background: #1B1B20; border-radius: 10px; color: #6E6E7A;"));
     info->addWidget(m_image);
     m_title = new QLabel(m_infoContent);
     m_title->setWordWrap(true);
-    m_title->setStyleSheet("font-size: 17px; font-weight: bold; color: #F2F2F5;");
+    m_title->setStyleSheet(UiScale::css("font-size: 17px; font-weight: bold; color: #F2F2F5;"));
     info->addWidget(m_title);
     m_byline = new QLabel(m_infoContent);
     m_byline->setTextFormat(Qt::RichText);
     m_byline->setWordWrap(true);
-    m_byline->setStyleSheet("color: #9FA8B8; font-size: 12px;");
+    m_byline->setStyleSheet(UiScale::css("color: #9FA8B8; font-size: 12px;"));
     connect(m_byline, &QLabel::linkActivated, this, [this](const QString& link) {
         if (link.startsWith("creator:")) showCreator(QUrl::fromPercentEncoding(link.mid(8).toUtf8()));
         else if (link == "tone") openToneOnline();
@@ -946,7 +947,7 @@ QWidget* Tone3000Dialog::buildInfoPanel() {
     m_tags = new QLabel(m_infoContent);
     m_tags->setTextFormat(Qt::RichText);
     m_tags->setWordWrap(true);
-    m_tags->setStyleSheet("font-size: 11px;");
+    m_tags->setStyleSheet(UiScale::css("font-size: 11px;"));
     m_tags->setToolTip("Click a tag to show only uploads with it");
     connect(m_tags, &QLabel::linkActivated, this, [this](const QString& link) {
         if (link.startsWith("tag:")) addTagFilter(QUrl::fromPercentEncoding(link.mid(4).toUtf8()));
@@ -956,17 +957,17 @@ QWidget* Tone3000Dialog::buildInfoPanel() {
     m_description->setWordWrap(true);
     m_description->setTextFormat(Qt::PlainText);
     m_description->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    m_description->setStyleSheet("color: #C8C8D0; font-size: 12px;");
+    m_description->setStyleSheet(UiScale::css("color: #C8C8D0; font-size: 12px;"));
     info->addWidget(m_description);
     m_moreButton = new QToolButton(m_infoContent);
     m_moreButton->setText("Show more");
     m_moreButton->setCheckable(true);
-    m_moreButton->setStyleSheet("QToolButton { color: #00B0FF; border: none; background: transparent; font-size: 11px; }");
+    m_moreButton->setStyleSheet(UiScale::css("QToolButton { color: #00B0FF; border: none; background: transparent; font-size: 11px; }"));
     connect(m_moreButton, &QToolButton::toggled, this, [this]() { showDetails(); });
     info->addWidget(m_moreButton, 0, Qt::AlignLeft);
 
     m_variantsLabel = new QLabel(m_infoContent);
-    m_variantsLabel->setStyleSheet("color: #8A8A96; font-size: 10px; font-weight: bold; margin-top: 6px;");
+    m_variantsLabel->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 10px; font-weight: bold; margin-top: 6px;"));
     m_variantsLabel->setTextFormat(Qt::RichText);
     m_variantsLabel->setToolTip("The NAM filter above decides which capture versions are listed");
     connect(m_variantsLabel, &QLabel::linkActivated, this, [this](const QString& link) {
@@ -981,11 +982,11 @@ QWidget* Tone3000Dialog::buildInfoPanel() {
     m_variants = new QListWidget(m_infoContent);
     m_variants->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_variants->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_variants->setStyleSheet(
+    m_variants->setStyleSheet(UiScale::css(
         "QListWidget { background: #17171B; border: 1px solid #26262C; border-radius: 6px; color: #D8D8DE; outline: none; font-size: 12px; }"
         "QListWidget::item { padding: 6px 8px; }"
         "QListWidget::item:selected { background: #0B4F6C; color: white; }"
-        "QListWidget::item:hover:!selected { background: #202026; }");
+        "QListWidget::item:hover:!selected { background: #202026; }"));
     connect(m_variants, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
         previewVariant(m_variants->row(item));
     });
@@ -1013,10 +1014,10 @@ QWidget* Tone3000Dialog::buildInfoPanel() {
     m_addToLibraryButton->setText(QString::fromUtf8("+ Add to Library"));
     m_addToLibraryButton->setPopupMode(QToolButton::MenuButtonPopup);
     m_addToLibraryButton->setCursor(Qt::PointingHandCursor);
-    m_addToLibraryButton->setStyleSheet(
+    m_addToLibraryButton->setStyleSheet(UiScale::css(
         "QToolButton { background: #2A2A30; color: #E0E0E0; border: 1px solid #3A3A42; border-radius: 5px; "
         "padding: 6px 22px 6px 12px; font-size: 13px; } QToolButton:hover { background: #34343C; }"
-        "QToolButton:disabled { color: #666; }");
+        "QToolButton:disabled { color: #666; }"));
     auto* addMenu = new QMenu(m_addToLibraryButton);
     connect(addMenu, &QMenu::aboutToShow, this, [this, addMenu]() {
         fillFolderMenu(addMenu, [this](const QString& folder) {
@@ -1030,7 +1031,7 @@ QWidget* Tone3000Dialog::buildInfoPanel() {
         if (currentVariant() >= 0) addVariantsToLibrary({currentVariant()}, CaptureLibrary::AddOptions());
     });
     m_addAllButton = new QPushButton(m_infoContent);
-    m_addAllButton->setStyleSheet(BrowserStyle::kSecondaryButton);
+    m_addAllButton->setStyleSheet(UiScale::css(BrowserStyle::kSecondaryButton));
     m_addAllButton->setAutoDefault(false);
     connect(m_addAllButton, &QPushButton::clicked, this, [this]() {
         // Every variant not in the library yet, to pick from and file together.
@@ -1060,17 +1061,17 @@ QWidget* Tone3000Dialog::buildInfoPanel() {
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(6);
     m_favoriteButton = new QPushButton(m_infoContent);
-    m_favoriteButton->setStyleSheet(BrowserStyle::kSecondaryButton);
+    m_favoriteButton->setStyleSheet(UiScale::css(BrowserStyle::kSecondaryButton));
     m_favoriteButton->setToolTip("Favorite (Ctrl+D)");
     connect(m_favoriteButton, &QPushButton::clicked, this, [this]() { toggleFavorite(m_selected); });
     m_webButton = new QPushButton(QString::fromUtf8("Web ↗"), m_infoContent);
-    m_webButton->setStyleSheet(BrowserStyle::kSecondaryButton);
+    m_webButton->setStyleSheet(UiScale::css(BrowserStyle::kSecondaryButton));
     m_webButton->setToolTip("Open this page on tone3000.com");
     connect(m_webButton, &QPushButton::clicked, this, [this]() {
         if (!m_selected.url.isEmpty()) QDesktopServices::openUrl(QUrl(m_selected.url));
     });
     m_loadButton = new QPushButton("Load", m_infoContent);
-    m_loadButton->setStyleSheet(BrowserStyle::kPrimaryButton);
+    m_loadButton->setStyleSheet(UiScale::css(BrowserStyle::kPrimaryButton));
     m_loadButton->setDefault(false);
     m_loadButton->setAutoDefault(false);
     connect(m_loadButton, &QPushButton::clicked, this, [this]() { loadVariant(currentVariant()); });
@@ -1083,8 +1084,8 @@ QWidget* Tone3000Dialog::buildInfoPanel() {
     m_progress = new QProgressBar(m_infoContent);
     m_progress->setFixedHeight(4);
     m_progress->setTextVisible(false);
-    m_progress->setStyleSheet("QProgressBar { background: #1F1F24; border: none; border-radius: 2px; }"
-                              "QProgressBar::chunk { background: #00B0FF; border-radius: 2px; }");
+    m_progress->setStyleSheet(UiScale::css("QProgressBar { background: #1F1F24; border: none; border-radius: 2px; }"
+                              "QProgressBar::chunk { background: #00B0FF; border-radius: 2px; }"));
     m_progress->hide();
     info->addWidget(m_progress);
     info->addStretch();
@@ -2067,7 +2068,7 @@ void Tone3000Dialog::goBack() {
 // ─── Misc ────────────────────────────────────────────────────────────────────
 
 void Tone3000Dialog::setStatus(const QString& text, bool error) {
-    m_status->setStyleSheet(error ? "color: #F08080; font-size: 11px;" : "color: #8A8A96; font-size: 11px;");
+    m_status->setStyleSheet(UiScale::css(error ? "color: #F08080; font-size: 11px;" : "color: #8A8A96; font-size: 11px;"));
     m_status->setText(QFontMetrics(m_status->font()).elidedText(text, Qt::ElideRight, 520));
     m_status->setToolTip(text);
 }

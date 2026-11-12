@@ -1,4 +1,5 @@
 #include "InspectorComponents.h"
+#include "UiScale.h"
 #include <QInputDialog>
 #include <QMouseEvent>
 #include <QPainter>
@@ -9,15 +10,15 @@ InspectorCard::InspectorCard(QWidget *parent) : QFrame(parent) {
   setObjectName("inspectorCard");
   setFrameShape(QFrame::NoFrame);
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
-  setStyleSheet("QFrame#inspectorCard { background:#22242A; border:1px solid "
-                "#363941; border-radius:8px; }");
+  setStyleSheet(UiScale::css("QFrame#inspectorCard { background:#22242A; border:1px solid "
+                "#363941; border-radius:8px; }"));
 }
 
 InspectorSectionHeader::InspectorSectionHeader(const QString &text,
                                                QWidget *parent)
     : QLabel(text, parent) {
-  setStyleSheet("color:#99A2B0; font-size:10px; font-weight:bold; "
-                "letter-spacing:1.1px; background:transparent; border:none;");
+  setStyleSheet(UiScale::css("color:#99A2B0; font-size:10px; font-weight:bold; "
+                "letter-spacing:1.1px; background:transparent; border:none;"));
 }
 
 FlowLayout::FlowLayout(QWidget *parent, int spacing) : QLayout(parent) {

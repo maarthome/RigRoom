@@ -1,4 +1,5 @@
 #include "AddToLibraryDialog.h"
+#include "UiScale.h"
 #include "BrowserStyle.h"
 
 #include <QComboBox>
@@ -19,7 +20,7 @@ using Tone3000::Format;
 AddToLibraryDialog::AddToLibraryDialog(const QString& title, const QList<Row>& rows, Format format, QWidget* parent)
     : QDialog(parent), m_format(format) {
     setWindowTitle(title);
-    setStyleSheet(BrowserStyle::kStyleSheet);
+    setStyleSheet(UiScale::css(BrowserStyle::kStyleSheet));
     resize(680, 680);
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(14, 14, 14, 14);
@@ -28,10 +29,10 @@ AddToLibraryDialog::AddToLibraryDialog(const QString& title, const QList<Row>& r
     m_tree = new QTreeWidget(this);
     m_tree->setHeaderHidden(true);
     m_tree->setUniformRowHeights(true);
-    m_tree->setStyleSheet(
+    m_tree->setStyleSheet(UiScale::css(
         "QTreeWidget { background: #17171B; border: 1px solid #26262C; border-radius: 6px; color: #D8D8DE; "
         "font-size: 12px; outline: none; } QTreeWidget::item { padding: 3px 2px; }"
-        "QTreeWidget::item:hover { background: #202026; } QTreeWidget::item:selected { background: #0B4F6C; }");
+        "QTreeWidget::item:hover { background: #202026; } QTreeWidget::item:selected { background: #0B4F6C; }"));
     QMap<QString, QTreeWidgetItem*> groups;
     for (const Row& row : rows) {
         QTreeWidgetItem*& group = groups[row.group.toLower() + row.group];
@@ -73,14 +74,14 @@ AddToLibraryDialog::AddToLibraryDialog(const QString& title, const QList<Row>& r
     connect(all, &QPushButton::clicked, this, [setAll]() { setAll(Qt::Checked); });
     connect(none, &QPushButton::clicked, this, [setAll]() { setAll(Qt::Unchecked); });
     m_count = new QLabel(this);
-    m_count->setStyleSheet("color: #8A8A96; font-size: 11px;");
+    m_count->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 11px;"));
     ticks->addWidget(m_count);
     ticks->addStretch();
     layout->addLayout(ticks);
 
     // What they all get. Empty fields leave each file's own details.
     auto* heading = new QLabel("FOR ALL OF THEM", this);
-    heading->setStyleSheet("color: #8A8A96; font-size: 10px; font-weight: bold; margin-top: 4px;");
+    heading->setStyleSheet(UiScale::css("color: #8A8A96; font-size: 10px; font-weight: bold; margin-top: 4px;"));
     layout->addWidget(heading);
     auto* form = new QFormLayout();
     form->setHorizontalSpacing(10);
@@ -137,7 +138,7 @@ AddToLibraryDialog::AddToLibraryDialog(const QString& title, const QList<Row>& r
     for (int stars = 1; stars <= 5; ++stars) m_rating->addItem(QString(stars, QChar(0x2605)), stars);
     auto label = [this](const QString& text) {
         auto* l = new QLabel(text, this);
-        l->setStyleSheet("color: #9FA8B8; font-size: 12px;");
+        l->setStyleSheet(UiScale::css("color: #9FA8B8; font-size: 12px;"));
         return l;
     };
     form->addRow(label("Folder"), m_folder);
@@ -156,7 +157,7 @@ AddToLibraryDialog::AddToLibraryDialog(const QString& title, const QList<Row>& r
     cancel->setAutoDefault(false);
     connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
     m_addButton = new QPushButton(this);
-    m_addButton->setStyleSheet(BrowserStyle::kPrimaryButton);
+    m_addButton->setStyleSheet(UiScale::css(BrowserStyle::kPrimaryButton));
     m_addButton->setDefault(true);
     connect(m_addButton, &QPushButton::clicked, this, &QDialog::accept);
     buttons->addWidget(cancel);
