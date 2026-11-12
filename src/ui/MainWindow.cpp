@@ -5696,13 +5696,22 @@ public:
                     extGui->get_size(plugin, &width, &height);
                 }
                 // Too big for the screen (a small touchscreen): ask the plugin
-                // to draw itself smaller, then to take a size that fits.
+                // to draw itself smaller. CLAP wants the scale set before the
+                // first size query, so the GUI is created again for it.
+                const QSize room = ScreenFit::physicalArea(this);
+                std::cerr << "CLAPHost: GUI '" << node->getName() << "' is " << width << "x" << height
+                          << ", room " << room.width() << "x" << room.height() << std::endl;
                 const double shrink = ScreenFit::shrinkToFit(int(width), int(height), this);
-                if (shrink < 1.0 && extGui->set_scale && extGui->set_scale(plugin, shrink) && extGui->get_size) {
-                    extGui->get_size(plugin, &width, &height);
+                if (shrink < 1.0 && extGui->set_scale) {
+                    if (extGui->destroy) extGui->destroy(plugin);
+                    extGui->create(plugin, CLAP_WINDOW_API_X11, false);
+                    const bool scaled = extGui->set_scale(plugin, shrink);
+                    if (extGui->get_size) extGui->get_size(plugin, &width, &height);
+                    std::cerr << "CLAPHost: set_scale(" << shrink << ") " << (scaled ? "accepted" : "refused")
+                              << ", GUI now " << width << "x" << height << std::endl;
                 }
-                if (!ScreenFit::fitsScreen(int(width), int(height), this) &&
-                    extGui->can_resize && extGui->can_resize(plugin) && extGui->set_size) {
+                const bool resizable = extGui->can_resize && extGui->can_resize(plugin);
+                if (!ScreenFit::fitsScreen(int(width), int(height), this) && resizable && extGui->set_size) {
                     const double fit = ScreenFit::shrinkToFit(int(width), int(height), this);
                     uint32_t fitWidth = static_cast<uint32_t>(width * fit);
                     uint32_t fitHeight = static_cast<uint32_t>(height * fit);
@@ -5711,6 +5720,11 @@ public:
                         width = fitWidth;
                         height = fitHeight;
                     }
+                    std::cerr << "CLAPHost: resized GUI to " << width << "x" << height << std::endl;
+                }
+                if (!ScreenFit::fitsScreen(int(width), int(height), this)) {
+                    std::cerr << "CLAPHost: GUI still " << width << "x" << height
+                              << (resizable ? "" : " (not resizable)") << ", it will scroll" << std::endl;
                 }
             }
         }
