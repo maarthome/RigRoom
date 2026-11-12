@@ -6,6 +6,7 @@
 #include <QSettings>
 #include <QString>
 #include <QtGlobal>
+#include <QtMath>
 
 // Text size chosen in Settings. Stylesheets are built as widgets are created,
 // so the size is read once at startup and a change takes effect on the next
@@ -23,6 +24,32 @@ inline int percentSetting() {
 
 inline void setPercentSetting(int percent) {
     QSettings("RigRoom", "RigRoom").setValue(kSettingKey, clampPercent(percent));
+}
+
+// Interface scale (the whole window, not only text). 0 means automatic: fit
+// the usual 1200x800 layout on the screen. Applied at startup.
+inline constexpr const char* kScreenScaleKey = "ui_screen_scale";
+inline constexpr int kDesignWidth = 1200;
+inline constexpr int kDesignHeight = 800;
+
+inline int screenScaleSetting() {
+    const int percent = QSettings("RigRoom", "RigRoom").value(kScreenScaleKey, 0).toInt();
+    return percent <= 0 ? 0 : qBound(40, percent, 200);
+}
+
+inline void setScreenScaleSetting(int percent) {
+    QSettings("RigRoom", "RigRoom").setValue(kScreenScaleKey, percent <= 0 ? 0 : qBound(40, percent, 200));
+}
+
+// The scale for a screen of the given size: the chosen one, or (automatic)
+// the largest one at which the usual layout fits, never above 100%.
+inline double screenScaleFor(int screenWidth, int screenHeight) {
+    const int chosen = screenScaleSetting();
+    if (chosen > 0) return chosen / 100.0;
+    if (screenWidth <= 0 || screenHeight <= 0) return 1.0;
+    const double fit = qMin(screenWidth / double(kDesignWidth), screenHeight / double(kDesignHeight));
+    if (fit >= 1.0) return 1.0;
+    return qMax(0.4, qFloor(fit * 100.0) / 100.0);
 }
 
 inline double& factorRef() {

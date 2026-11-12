@@ -434,7 +434,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
                 takeCentralWidget();
                 setCentralWidget(ScreenFit::scrollable(content, this));
             }
-            if (!area.contains(geometry()) || width() > area.width() || height() > area.height()) {
+            // Scaled down to fit a small screen: always use all of it.
+            const bool scaledDown = qEnvironmentVariable("QT_SCALE_FACTOR").toDouble() < 1.0;
+            if (scaledDown || !area.contains(geometry()) || width() > area.width() || height() > area.height()) {
                 setMinimumSize(minimumSize().boundedTo(area.size()));
                 setGeometry(area);
                 setWindowState(windowState() | Qt::WindowMaximized);
@@ -917,7 +919,23 @@ void MainWindow::setupUI() {
         UiScale::setPercentSetting(textSizeCombo->itemData(index).toInt());
     });
     formLayout->addRow("Text Size:", textSizeCombo);
-    QLabel* textSizeHint = new QLabel("Text size takes effect the next time RigRoom starts.", m_settingsDialog);
+
+    // Screen scale shrinks or enlarges the whole interface. Automatic fits the
+    // usual layout on the screen, which suits small touchscreens.
+    QComboBox* screenScaleCombo = new QComboBox(m_settingsDialog);
+    screenScaleCombo->addItem("Automatic (fit the screen)", 0);
+    for (int percent : {40, 50, 60, 70, 80, 90, 100, 125, 150, 175, 200}) {
+        screenScaleCombo->addItem(QString("%1%").arg(percent), percent);
+    }
+    if (screenScaleCombo->findData(UiScale::screenScaleSetting()) < 0) {
+        screenScaleCombo->addItem(QString("%1%").arg(UiScale::screenScaleSetting()), UiScale::screenScaleSetting());
+    }
+    screenScaleCombo->setCurrentIndex(screenScaleCombo->findData(UiScale::screenScaleSetting()));
+    connect(screenScaleCombo, &QComboBox::currentIndexChanged, this, [screenScaleCombo](int index) {
+        UiScale::setScreenScaleSetting(screenScaleCombo->itemData(index).toInt());
+    });
+    formLayout->addRow("Screen Scale:", screenScaleCombo);
+    QLabel* textSizeHint = new QLabel("Text size and screen scale take effect the next time RigRoom starts.", m_settingsDialog);
     textSizeHint->setStyleSheet(UiScale::css(SettingsUi::kHintCss));
     formLayout->addRow(textSizeHint);
 

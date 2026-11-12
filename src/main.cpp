@@ -12,6 +12,7 @@ extern "C" int XInitThreads(void);
 #include "ui/PluginSnapshot.h"
 #include "ui/UiScale.h"
 #include "ui/ScreenFit.h"
+#include "ScreenProbe.h"
 #include "Version.h"
 #include <csignal>
 #include <cstdio>
@@ -93,8 +94,18 @@ int main(int argc, char* argv[]) {
     // use XWayland so QWidget::winId() is a real X11 window ID for the plugin.
     qputenv("QT_QPA_PLATFORM", "xcb");
     qputenv("GDK_BACKEND", "x11");
+    // Interface scale: shrink everything on screens too small for the usual
+    // layout (a Raspberry Pi touchscreen), or use the scale chosen in Settings.
+    // QT_SCALE_FACTOR set by the user wins.
     if (qEnvironmentVariableIsEmpty("QT_SCALE_FACTOR")) {
-        qputenv("QT_SCALE_FACTOR", "1");
+        int screenWidth = 0, screenHeight = 0;
+        probeX11ScreenSize(screenWidth, screenHeight);
+        const double scale = UiScale::screenScaleFor(screenWidth, screenHeight);
+        qputenv("QT_SCALE_FACTOR", QByteArray::number(scale, 'f', 2));
+        if (screenWidth > 0) {
+            std::cout << "RigRoom: screen " << screenWidth << "x" << screenHeight
+                      << ", interface scale " << scale << std::endl;
+        }
     }
 
     // Suil module directory auto-detection across distros & AppImage

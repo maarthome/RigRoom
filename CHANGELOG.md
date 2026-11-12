@@ -14,6 +14,7 @@
 - Plugin Presets > Plugin's Own Presets lists the presets a plugin ships and loads them: LV2 presets, VST3 programs and .vstpreset files, and CLAP presets found through preset discovery.
 - Drop-down lists and selection lists use the dark theme instead of a near-white background.
 - On small screens, such as a Raspberry Pi touchscreen, the main window fills the screen and scrolls when its controls need more room, Settings tabs scroll, and dialogs are kept on screen.
+- The whole interface scales to fit small screens automatically. Settings > Screen Scale can set it by hand (40% to 200%); it applies the next time RigRoom starts.
 
 ## 0.13.0 - 2026-10-01
 

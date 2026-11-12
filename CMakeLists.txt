@@ -36,6 +36,7 @@ pkg_check_modules(SECRET REQUIRED IMPORTED_TARGET libsecret-1)
 # Main executable target
 add_executable(RigRoom
     src/main.cpp
+    src/ScreenProbe.cpp
     src/CredentialStore.cpp
     src/CredentialStore.h
     src/audio/AudioEngine.cpp
