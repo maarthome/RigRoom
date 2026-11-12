@@ -5,6 +5,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QEvent>
+#include <QFocusEvent>
 #include <QGridLayout>
 #include <QGuiApplication>
 #include <QKeyEvent>
@@ -51,6 +52,30 @@ public:
         return false;
     }
 
+    // Spin boxes and editable combo boxes open the keyboard only when their
+    // text is tapped, not their arrows.
+    static bool opensOnFocus(QWidget* widget) {
+        return isTextField(widget) && !qobject_cast<QAbstractSpinBox*>(widget) && !qobject_cast<QComboBox*>(widget)
+            && !(widget->parentWidget() && (qobject_cast<QAbstractSpinBox*>(widget->parentWidget())
+                                            || qobject_cast<QComboBox*>(widget->parentWidget())));
+    }
+
+    // The field a tap on `widget` edits: the widget itself, or the spin box or
+    // combo box whose text part it is.
+    static QWidget* fieldFor(QWidget* widget) {
+        if (!widget) return nullptr;
+        QWidget* parent = widget->parentWidget();
+        if (parent && (qobject_cast<QTextEdit*>(parent) || qobject_cast<QPlainTextEdit*>(parent)))
+            return isTextField(parent) ? parent : nullptr;  // their viewport gets the taps
+        if (qobject_cast<QLineEdit*>(widget) && parent
+            && (qobject_cast<QAbstractSpinBox*>(parent) || qobject_cast<QComboBox*>(parent))) {
+            return isTextField(parent) ? parent : nullptr;
+        }
+        return isTextField(widget) ? widget : nullptr;
+    }
+
+    QWidget* field() const { return m_field; }
+
     void showFor(QWidget* field) {
         if (!field) return;
         if (field != m_field) restoreWindow();
@@ -62,6 +87,11 @@ public:
         setGeometry(area.left(), area.bottom() + 1 - height, area.width(), height);
         show();
         raise();
+        // Give the field's window the keyboard focus explicitly. Without a
+        // window manager X otherwise hands focus to whatever window the finger
+        // is on, and tapping a key would take it away from the field.
+        if (QWidget* window = field->window()) window->activateWindow();
+        field->setFocus(Qt::OtherFocusReason);
         keepFieldVisible();
     }
 
@@ -75,6 +105,7 @@ private:
     OnScreenKeyboard() : QWidget(nullptr, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint
                                               | Qt::WindowDoesNotAcceptFocus) {
         setAttribute(Qt::WA_ShowWithoutActivating);
+        setAttribute(Qt::WA_X11DoNotAcceptFocus);
         setFocusPolicy(Qt::NoFocus);
         setObjectName("onScreenKeyboard");
         setAttribute(Qt::WA_StyledBackground, true);
@@ -175,9 +206,14 @@ private:
     }
 
     void sendKey(int key, const QString& text) {
-        QWidget* target = QApplication::focusWidget();
-        if (!target) target = m_field;
-        if (!target) return;
+        // Always the field the keyboard was opened for, whatever has focus.
+        QWidget* target = m_field;
+        if (!target) target = QApplication::focusWidget();
+        if (!target || target == this || isAncestorOf(target)) return;
+        if (QWidget* window = target->window()) {
+            if (!window->isActiveWindow()) window->activateWindow();
+        }
+        if (!target->hasFocus()) target->setFocus(Qt::OtherFocusReason);
         QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier, text);
         QCoreApplication::sendEvent(target, &press);
         QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier, text);
@@ -222,29 +258,46 @@ public:
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override {
-        if (event->type() == QEvent::FocusIn && watched->isWidgetType()) {
-            auto* widget = static_cast<QWidget*>(watched);
-            if (OnScreenKeyboard::isTextField(widget) && OnScreenKeyboard::enabled()) {
+        const QEvent::Type type = event->type();
+        if (type != QEvent::FocusIn && type != QEvent::FocusOut && type != QEvent::MouseButtonRelease) return false;
+        if (!watched->isWidgetType()) return false;
+        auto* widget = static_cast<QWidget*>(watched);
+        OnScreenKeyboard* keyboard = OnScreenKeyboard::instance();
+        if (widget == keyboard || keyboard->isAncestorOf(widget)) return false;
+
+        if (event->type() == QEvent::FocusIn) {
+            if (OnScreenKeyboard::opensOnFocus(widget) && OnScreenKeyboard::enabled()) {
                 QPointer<QWidget> field = widget;
-                // After the click that gave focus has finished.
+                // After the tap that gave focus has finished.
                 QTimer::singleShot(0, [field]() {
                     if (field && field->hasFocus()) OnScreenKeyboard::instance()->showFor(field);
                 });
             }
-        } else if (event->type() == QEvent::MouseButtonRelease && watched->isWidgetType()) {
-            // Tapping a field that already has focus brings the keyboard back
-            // after it was hidden.
-            auto* widget = static_cast<QWidget*>(watched);
-            QWidget* field = OnScreenKeyboard::isTextField(widget) ? widget : widget->parentWidget();
-            if (field && OnScreenKeyboard::isTextField(field) && field->hasFocus() && OnScreenKeyboard::enabled()
-                && !OnScreenKeyboard::instance()->isVisible()) {
-                OnScreenKeyboard::instance()->showFor(field);
+        } else if (event->type() == QEvent::MouseButtonRelease) {
+            // Tapping the text of a field (also of a spin box or editable combo,
+            // and again after the keyboard was hidden) opens the keyboard.
+            QWidget* field = OnScreenKeyboard::fieldFor(widget);
+            const bool onText = qobject_cast<QLineEdit*>(widget) || qobject_cast<QTextEdit*>(widget)
+                             || qobject_cast<QPlainTextEdit*>(widget)
+                             || (widget->parentWidget() && (qobject_cast<QTextEdit*>(widget->parentWidget())
+                                                            || qobject_cast<QPlainTextEdit*>(widget->parentWidget())));
+            if (field && onText && OnScreenKeyboard::enabled()
+                && (!keyboard->isVisible() || keyboard->field() != field)) {
+                QPointer<QWidget> target = field;
+                QTimer::singleShot(0, [target]() {
+                    if (target) OnScreenKeyboard::instance()->showFor(target);
+                });
             }
-        } else if (event->type() == QEvent::FocusOut && watched->isWidgetType()
-                   && OnScreenKeyboard::isTextField(static_cast<QWidget*>(watched))) {
+        } else if (event->type() == QEvent::FocusOut && OnScreenKeyboard::isTextField(widget)) {
+            // Losing focus because another window became active (e.g. a tap on
+            // the keyboard itself) is not leaving the field.
+            const auto reason = static_cast<QFocusEvent*>(event)->reason();
+            if (reason == Qt::ActiveWindowFocusReason || reason == Qt::PopupFocusReason) return false;
             QTimer::singleShot(0, []() {
                 QWidget* now = QApplication::focusWidget();
-                if (!now || !OnScreenKeyboard::isTextField(now)) OnScreenKeyboard::instance()->hideKeyboard();
+                OnScreenKeyboard* keyboard = OnScreenKeyboard::instance();
+                if (now && (now == keyboard || keyboard->isAncestorOf(now))) return;
+                if (!now || !OnScreenKeyboard::fieldFor(now)) keyboard->hideKeyboard();
             });
         }
         return false;

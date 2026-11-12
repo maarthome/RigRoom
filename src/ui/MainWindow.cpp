@@ -598,6 +598,26 @@ void MainWindow::setupUI() {
             background-color: #007ACC;
             color: white;
         }
+        /* Number fields: large up/down buttons that a finger can hit. */
+        QAbstractSpinBox {
+            background-color: #1E1E1E;
+            border: 1px solid #333333;
+            border-radius: 4px;
+            color: #E0E0E0;
+            padding: 4px 44px 4px 6px;
+            min-height: 30px;
+        }
+        QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {
+            subcontrol-origin: border;
+            width: 40px;
+            background-color: #2E3038;
+            border: 1px solid #3E414B;
+        }
+        QAbstractSpinBox::up-button { subcontrol-position: top right; border-top-right-radius: 4px; }
+        QAbstractSpinBox::down-button { subcontrol-position: bottom right; border-bottom-right-radius: 4px; }
+        QAbstractSpinBox::up-button:pressed, QAbstractSpinBox::down-button:pressed { background-color: #00B0FF; }
+        QAbstractSpinBox::up-arrow { image: url(:/icons/spin-up.png); width: 16px; height: 16px; }
+        QAbstractSpinBox::down-arrow { image: url(:/icons/spin-down.png); width: 16px; height: 16px; }
         /* Drop-down lists and item views take the palette's light base colour
            unless told otherwise, so combo popups came up almost white. */
         QComboBox QAbstractItemView, QAbstractItemView {

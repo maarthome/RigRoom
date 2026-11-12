@@ -2,4 +2,8 @@
   <qresource prefix="/branding">
     <file alias="rigroom-icon.png">../../packaging/org.rigroom.RigRoom.png</file>
   </qresource>
+  <qresource prefix="/icons">
+    <file alias="spin-up.png">icons/spin-up.png</file>
+    <file alias="spin-down.png">icons/spin-down.png</file>
+  </qresource>
 </RCC>

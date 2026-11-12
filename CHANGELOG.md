@@ -25,6 +25,7 @@
 - Wrapped rows of plugin blocks after the first start at the left edge, under the input block.
 - The Settings window is 1.5 times larger by default (Settings > GUI > Settings Window).
 - An on-screen keyboard appears when a text or number field is tapped; the field's window moves up so the keyboard does not cover it (Settings > GUI > On-screen Keyboard).
+- Number fields have large up/down buttons; tapping them changes the value without opening the keyboard (only tapping the number does).
 
 ## 0.13.0 - 2026-10-01
 
