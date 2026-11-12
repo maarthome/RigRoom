@@ -81,6 +81,17 @@ static std::vector<uint8_t> buildPatchSet(const std::string& propertyUri, const 
     return buffer;
 }
 
+// Xlib ends the program on any X error by default. A plugin window can
+// disappear between asking for it and asking for its size (BadWindow); that
+// is reported and ignored instead.
+static int ignoreXError(Display* display, XErrorEvent* error) {
+    char text[160] = {};
+    XGetErrorText(display, error->error_code, text, sizeof(text) - 1);
+    std::fprintf(stderr, "RigRoom: ignored X error: %s (request %d, window 0x%lx)\n", text,
+                 int(error->request_code), static_cast<unsigned long>(error->resourceid));
+    return 0;
+}
+
 struct Helper {
     using GtkInitCheck = int (*)(int*, char***);
     using GtkWindowNew = void* (*)(int);
@@ -648,6 +659,7 @@ struct X11Helper {
         socket.connectToServer(serverName);
         if (!socket.waitForConnected(5000)) return false;
 
+        XSetErrorHandler(ignoreXError);
         display = XOpenDisplay(nullptr);
         if (!display) return false;
         const int screen = DefaultScreen(display);

@@ -106,6 +106,7 @@
 #include <QDial>
 #include <QButtonGroup>
 #include <cmath>
+#include <cstdio>
 #include <limits>
 #include <numeric>
 #include <tuple>
@@ -5728,8 +5729,19 @@ static void layoutPluginFullScreen(QWidget* window, const QSize& content, bool z
 }
 
 // How far the plugin's own X windows reach inside its area (X pixels).
+// Xlib ends the program on any X error by default. A plugin window can
+// disappear between asking for it and asking for its size (BadWindow); that
+// is reported and ignored instead.
+static int ignoreXError(Display* display, XErrorEvent* error) {
+    char text[160] = {};
+    XGetErrorText(display, error->error_code, text, sizeof(text) - 1);
+    std::fprintf(stderr, "RigRoom: ignored X error: %s (request %d, window 0x%lx)\n", text,
+                 int(error->request_code), static_cast<unsigned long>(error->resourceid));
+    return 0;
+}
+
 static QSize pluginWindowsExtent(QWidget* area) {
-    static Display* display = XOpenDisplay(nullptr);
+    static Display* display = []() { XSetErrorHandler(ignoreXError); return XOpenDisplay(nullptr); }();
     if (!display || !area || !area->internalWinId()) return QSize();
     ::Window root = 0, parent = 0, *children = nullptr;
     unsigned int count = 0;
