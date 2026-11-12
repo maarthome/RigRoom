@@ -931,6 +931,19 @@ void MainWindow::setupUI() {
     });
     guiForm->addRow("Parameter Page:", paramPageCombo);
 
+    QComboBox* chainLayoutCombo = new QComboBox(m_settingsDialog);
+    chainLayoutCombo->addItem("Snake (wraps to fit the screen)", true);
+    chainLayoutCombo->addItem("One line", false);
+    chainLayoutCombo->setCurrentIndex(QSettings("RigRoom", "RigRoom").value("gui_snake_layout", true).toBool() ? 0 : 1);
+    chainLayoutCombo->setToolTip("Snake: when the signal path is wider than the screen, it continues on the next "
+                                 "line, running back the other way, like a snake down the screen.");
+    connect(chainLayoutCombo, &QComboBox::currentIndexChanged, this, [this, chainLayoutCombo](int index) {
+        const bool snake = chainLayoutCombo->itemData(index).toBool();
+        QSettings("RigRoom", "RigRoom").setValue("gui_snake_layout", snake);
+        if (m_canvas) m_canvas->setSnakeLayout(snake);
+    });
+    guiForm->addRow("Signal Chain:", chainLayoutCombo);
+
     QSpinBox* perRowSpin = new QSpinBox(m_settingsDialog);
     perRowSpin->setRange(1, 16);
     perRowSpin->setValue(std::clamp(QSettings("RigRoom", "RigRoom").value("gui_controls_per_row", 5).toInt(), 1, 16));
@@ -1602,6 +1615,8 @@ void MainWindow::setupUI() {
     {
         QSettings canvasSettings("RigRoom", "RigRoom");
         m_canvas->setAutoFit(canvasSettings.value("canvas_auto_fit", false).toBool());
+        // Settings > GUI: fold the signal path into lines that fit the width.
+        m_canvas->setSnakeLayout(canvasSettings.value("gui_snake_layout", true).toBool());
         connect(m_canvas, &NodeCanvas::autoFitChanged, this, [](bool enabled) {
             QSettings("RigRoom", "RigRoom").setValue("canvas_auto_fit", enabled);
         });

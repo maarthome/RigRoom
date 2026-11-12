@@ -20,6 +20,7 @@
 - A plugin window fills the screen when it opens: RigRoom zooms the whole X screen (xrandr) so the plugin fits the panel exactly, for any plugin, and restores the previous zoom when the window closes.
 - Parameters can open as a full-screen page: the main screen shows only the board, and double-tapping a block opens its parameters (BACK returns). Settings > GUI switches between this and the deck below the board.
 - Parameter controls are arranged in rows of a set number (Settings > GUI > Controls per Row, 5 by default). Text Size and Screen Scale moved to the new GUI tab.
+- Snake layout for the signal path: when it is wider than the screen, it continues on the next line running the other way, down the screen (Settings > GUI > Signal Chain).
 
 ## 0.13.0 - 2026-10-01
 

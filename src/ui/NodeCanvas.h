@@ -1,5 +1,6 @@
 #pragma once
 class QGraphicsPathItem;
+#include <QPainterPath>
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <vector>
@@ -164,6 +165,26 @@ public:
     void zoomIn();
     void zoomOut();
 
+    // Snake layout: the signal path folds into lines that fit the width,
+    // left to right, then right to left, and so on down the screen. The board
+    // still works on one straight track internally; these map its positions
+    // ("logical") to where they are drawn ("scene").
+    void setSnakeLayout(bool enabled);
+    bool snakeLayout() const { return m_snake; }
+    QPointF toScene(const QPointF& logical) const;
+    // A box of the given width whose top-left is `logicalTopLeft`, mapped by
+    // its centre (boxes on a right-to-left line keep their orientation).
+    QPointF toSceneBox(const QPointF& logicalTopLeft, qreal width) const;
+    QPainterPath toScene(const QPainterPath& logical) const;
+    // Where the gap `gap` of lane `row` is drawn, and the gap nearest to a
+    // scene point along that lane (0..maxGap).
+    QPointF gapScenePos(int row, int gap) const;
+    int nearestGap(int row, const QPointF& scenePos, int maxGap) const;
+    // Distance from a scene point to gap `gap` of lane `row`. A gap where a
+    // line turns is at the end of one line and the start of the next; the
+    // nearer of the two counts.
+    qreal gapDistance(int row, int gap, const QPointF& scenePos) const;
+
 signals:
     void zoomChanged(double zoom);
     void autoFitChanged(bool enabled);
@@ -212,6 +233,13 @@ private:
     PlusButtonWidget* findPlusButton(int row, int col) const;
     int activeLaneSteps() const;
     qreal canvasHeightFor(qreal viewportHeight) const;
+    int snakeBandOf(qreal u) const;
+    bool m_snake = false;
+    int m_bandColumns = 0;     // columns per line; 0 = one straight line
+    int m_bandCount = 1;
+    qreal m_bandHeight = 0.0;  // height of one line (all its lanes)
+    qreal m_trackBase = 0.0;   // logical x of gap 0
+    qreal m_layoutHeight = 0.0; // logical height the lanes are laid out in
     void calculateRowCenters(qreal rowCenters[NUM_ROWS], qreal H) const;
 
     AudioEngine* m_engine;

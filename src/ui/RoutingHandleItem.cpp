@@ -210,30 +210,23 @@ void RoutingHandleItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
 
 void RoutingHandleItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     if (m_dragging) {
-        qreal currentMouseX = event->scenePos().x();
         int parentRow = m_canvas->getSplitParentRow(m_branchRow);
 
         int activeCols = m_canvas->getNumCols();
-        int plusIndex = 0;
-        qreal minDist = 999999.0;
-        for (int k = 0; k <= activeCols; ++k) {
-            qreal dist = std::abs(currentMouseX - m_canvas->getGapX(k));
-            if (dist < minDist) {
-                minDist = dist;
-                plusIndex = k;
-            }
-        }
+        // The gap nearest on screen along this path (also in the snake layout).
+        const int plusIndex = m_canvas->nearestGap(m_branchRow, event->scenePos(), activeCols);
 
         qreal snapX = m_canvas->getGapX(plusIndex);
-
-        // Keep handle on its own Y coordinate during drag
-        setPos(snapX, pos().y());
 
         // Find parent Y for dashed connection preview
         qreal parentY = m_canvas->getRowCenterY(parentRow);
 
+        // Keep the handle halfway between its path and the parent during drag
+        const qreal handleY = (m_canvas->getRowCenterY(m_branchRow) + parentY) / 2.0;
+        setPos(m_canvas->toScene(QPointF(snapX, handleY)));
+
         // Draw vertical connection preview line from handle to parent row
-        QPointF targetPoint = mapFromScene(QPointF(snapX, parentY));
+        QPointF targetPoint = mapFromScene(m_canvas->toScene(QPointF(snapX, parentY)));
         QPainterPath previewPath;
         previewPath.moveTo(0, 0);
         previewPath.lineTo(targetPoint);
@@ -335,19 +328,11 @@ void RoutingHandleItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
         update();
 
         const bool wasClick = QLineF(m_dragStartPos, event->scenePos()).length() < 4.0;
-        qreal currentMouseX = event->scenePos().x();
         int targetParentRow = m_canvas->getSplitParentRow(m_branchRow);
 
         int activeCols = m_canvas->getNumCols();
-        int plusIndex = 0;
-        qreal minDist = 999999.0;
-        for (int k = 0; k <= activeCols; ++k) {
-            qreal dist = std::abs(currentMouseX - m_canvas->getGapX(k));
-            if (dist < minDist) {
-                minDist = dist;
-                plusIndex = k;
-            }
-        }
+        // The gap nearest on screen along this path (also in the snake layout).
+        const int plusIndex = m_canvas->nearestGap(m_branchRow, event->scenePos(), activeCols);
 
         int targetColumn = m_isSplit ? (plusIndex - 1) : ((plusIndex >= activeCols) ? -1 : plusIndex);
 

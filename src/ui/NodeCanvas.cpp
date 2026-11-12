@@ -23,6 +23,8 @@
 #include <QToolButton>
 #include <QHBoxLayout>
 #include <QPainterPath>
+#include <QLineF>
+#include <QVariant>
 #include <QResizeEvent>
 #include <algorithm>
 #include <iostream>
@@ -37,6 +39,9 @@ static constexpr qreal PLUG_NODE_W = CanvasMetrics::cardWidth;
 static constexpr qreal PLUG_NODE_H = CanvasMetrics::cardHeight;
 static constexpr qreal MARGIN_X    = CanvasMetrics::marginX;
 static constexpr qreal MARGIN_Y    = CanvasMetrics::marginY;
+// QGraphicsItem::data() key: an item's position on the straight (logical)
+// track, so the snake layout can move it again from there.
+static constexpr int kLogicalPosKey = 0x5A11;
 // Width of the small '+' slot between nodes
 static constexpr qreal INSERT_BTN_W = 18.0;
 static constexpr qreal MIN_SPACING = 4.0;
@@ -242,18 +247,18 @@ private:
         }
 
         for (int pRow : eligibleParents) {
-            qreal rY = m_canvas->getRowCenterY(pRow);
             for (int k = 0; k <= m_canvas->getNumCols(); ++k) {
                 if (!isValidSplitGap(pRow, k)) continue;
 
-                qreal gX = m_canvas->getGapX(k);
-                qreal dist = std::hypot(gX - scenePoint.x(), rY - scenePoint.y());
+                // Measured on screen, so it also works in the snake layout.
+                const qreal dist = m_canvas->gapDistance(pRow, k, scenePoint);
                 if (dist < minDistance) {
                     minDistance = dist;
+                    const QPointF snap = m_canvas->gapScenePos(pRow, k);
                     best.parentRow = pRow;
                     best.gapIndex = k;
-                    best.snapX = gX;
-                    best.snapY = rY;
+                    best.snapX = snap.x();
+                    best.snapY = snap.y();
                 }
             }
         }
@@ -977,7 +982,7 @@ void NodeCanvas::calculateRowCenters(qreal rowCenters[NUM_ROWS], qreal H) const 
 qreal NodeCanvas::getRowCenterY(int row) const {
     if (row < 0 || row >= NUM_ROWS) return 0.0;
     qreal rowCenters[NUM_ROWS];
-    qreal H = m_scene->sceneRect().height();
+    qreal H = m_layoutHeight > 0.0 ? m_layoutHeight : m_scene->sceneRect().height();
     if (H <= 0.0) {
         H = canvasHeightFor(viewport()->height());
     }
@@ -1006,6 +1011,20 @@ void NodeCanvas::updateLayout() {
     // logical gaps align with the system edges at every viewport size.
     qreal W = requiredCanvasW;
 
+    // Snake layout: when the track is wider than the view, fold it into lines
+    // of as many columns as fit, stacked down the screen.
+    m_trackBase = MARGIN_X + inputW + CanvasMetrics::clearGap / 2.0;
+    m_bandColumns = 0;
+    m_bandCount = 1;
+    if (m_snake && !fitsInViewport) {
+        const qreal room = visibleSceneW - m_trackBase - CanvasMetrics::clearGap - outputW - MARGIN_X;
+        const int perLine = std::max(2, int(std::floor(room / CanvasMetrics::columnPitch)));
+        if (perLine < m_numCols) {
+            m_bandColumns = perLine;
+            m_bandCount = (m_numCols + perLine - 1) / perLine;
+        }
+    }
+
     if (fitsInViewport) {
         setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     } else {
@@ -1013,8 +1032,14 @@ void NodeCanvas::updateLayout() {
     }
     
     qreal H = canvasHeightFor(viewport()->height());
+    if (m_bandColumns > 0) {
+        // Each line is only as tall as its lanes need; the lines stack.
+        H = canvasHeightFor(0.0) + 24.0;
+    }
+    m_layoutHeight = H;
+    m_bandHeight = H;
 
-    m_scene->setSceneRect(0, 0, W, H);
+    m_scene->setSceneRect(0, 0, W, H * m_bandCount);
 
     qreal rowCenters[NUM_ROWS];
     calculateRowCenters(rowCenters, H);
@@ -1028,7 +1053,7 @@ void NodeCanvas::updateLayout() {
         m_sysInputWidget->setPos(MARGIN_X, sysCY - inputH / 2);
     }
     if (m_sysOutputWidget) {
-        m_sysOutputWidget->setPos(W - MARGIN_X - outputW, sysCY - outputH / 2);
+        m_sysOutputWidget->setPos(toSceneBox(QPointF(W - MARGIN_X - outputW, sysCY - outputH / 2), outputW));
     }
 
     qreal trackLeft  = MARGIN_X + inputW + CanvasMetrics::clearGap;
@@ -1065,7 +1090,7 @@ void NodeCanvas::updateLayout() {
             QPainterPath path;
             path.moveTo(sysRightX, sysMidY);
             path.lineTo(sysLeftX, sysMidY);
-            wire->setPath(path);
+            wire->setPath(toScene(path));
             wire->setPen(QPen(QColor(0, 176, 255, 40), 1.5, Qt::DashLine));
             wire->setZValue(-3);
             m_scene->addItem(wire);
@@ -1075,7 +1100,10 @@ void NodeCanvas::updateLayout() {
     }
 
     // ── Small dot markers on system node edges ──────────────────────────
-    auto makeDot = [&](qreal x, qreal y, QColor col) {
+    auto makeDot = [&](qreal lx, qreal ly, QColor col) {
+        const QPointF at = toScene(QPointF(lx, ly));
+        const qreal x = at.x();
+        const qreal y = at.y();
         auto* dot = new QGraphicsEllipseItem(x - 4, y - 4, 8, 8);
         dot->setBrush(col);
         dot->setPen(Qt::NoPen);
@@ -1090,11 +1118,126 @@ void NodeCanvas::updateLayout() {
         makeDot(sysLeftX, sysMidY, QColor(0, 200, 120));
     }
 
-    if (fitsInViewport) {
+    if (m_bandColumns > 0) {
+        const qreal snakeW = m_trackBase + m_bandColumns * CanvasMetrics::columnPitch
+                           + CanvasMetrics::clearGap + outputW + MARGIN_X;
+        m_scene->setSceneRect(QRectF(0, 0, snakeW, H * m_bandCount).united(m_scene->itemsBoundingRect()));
+    } else if (fitsInViewport) {
         m_scene->setSceneRect(0, 0, W, H);
     } else {
         m_scene->setSceneRect(QRectF(0, 0, W, H).united(m_scene->itemsBoundingRect()));
     }
+}
+
+// ─── Snake layout mapping ─────────────────────────────────────────────────────
+// The logical track runs along x; u is the distance from gap 0. Line b holds
+// u in [b * bandLen, (b + 1) * bandLen]: even lines left to right, odd lines
+// right to left, each one bandHeight further down.
+
+int NodeCanvas::snakeBandOf(qreal u) const {
+    if (m_bandColumns <= 0 || u < 0.0) return 0;
+    const qreal bandLen = m_bandColumns * CanvasMetrics::columnPitch;
+    return std::clamp(int(std::floor(u / bandLen)), 0, std::max(0, m_bandCount - 1));
+}
+
+QPointF NodeCanvas::toScene(const QPointF& logical) const {
+    if (m_bandColumns <= 0) return logical;
+    const qreal u = logical.x() - m_trackBase;
+    if (u < 0.0) return logical;  // the input block, before the track
+    const qreal bandLen = m_bandColumns * CanvasMetrics::columnPitch;
+    const int band = snakeBandOf(u);
+    const qreal v = u - band * bandLen;
+    const qreal x = (band % 2 == 0) ? m_trackBase + v : m_trackBase + bandLen - v;
+    return QPointF(x, logical.y() + band * m_bandHeight);
+}
+
+QPointF NodeCanvas::toSceneBox(const QPointF& logicalTopLeft, qreal width) const {
+    if (m_bandColumns <= 0) return logicalTopLeft;
+    const QPointF centre = toScene(logicalTopLeft + QPointF(width / 2.0, 0.0));
+    return QPointF(centre.x() - width / 2.0, centre.y());
+}
+
+QPainterPath NodeCanvas::toScene(const QPainterPath& logical) const {
+    if (m_bandColumns <= 0) return logical;
+    const qreal bandLen = m_bandColumns * CanvasMetrics::columnPitch;
+    constexpr qreal turnOut = 14.0;  // how far a turn swings past the line's end
+    QPainterPath out;
+    QPointF previous;
+    for (int i = 0; i < logical.elementCount(); ++i) {
+        const QPainterPath::Element e = logical.elementAt(i);
+        const QPointF point(e.x, e.y);
+        if (e.isMoveTo()) {
+            out.moveTo(toScene(point));
+            previous = point;
+            continue;
+        }
+        if (!e.isLineTo()) {  // curve data: map the points as they are
+            out.lineTo(toScene(point));
+            previous = point;
+            continue;
+        }
+        const qreal ua = previous.x() - m_trackBase;
+        const qreal ub = point.x() - m_trackBase;
+        const int bandA = snakeBandOf(ua);
+        const int bandB = snakeBandOf(ub);
+        if (bandA != bandB && qFuzzyCompare(previous.y() + 1.0, point.y() + 1.0)) {
+            // A horizontal wire that runs past the end of a line turns down
+            // (or up) to the next one at the side where both lines meet.
+            const int step = bandB > bandA ? 1 : -1;
+            for (int band = bandA; band != bandB; band += step) {
+                const int next = band + step;
+                const int turnBand = std::min(band, next);  // the line whose end meets the next
+                const bool rightSide = turnBand % 2 == 0;
+                const qreal edgeX = rightSide ? m_trackBase + bandLen : m_trackBase;
+                const qreal outX = rightSide ? edgeX + turnOut : edgeX - turnOut;
+                const qreal y = point.y() + band * m_bandHeight;
+                const qreal nextY = point.y() + next * m_bandHeight;
+                out.lineTo(edgeX, y);
+                out.lineTo(outX, y);
+                out.lineTo(outX, nextY);
+                out.lineTo(edgeX, nextY);
+            }
+        }
+        out.lineTo(toScene(point));
+        previous = point;
+    }
+    return out;
+}
+
+QPointF NodeCanvas::gapScenePos(int row, int gap) const {
+    return toScene(QPointF(getGapX(gap), getRowCenterY(row)));
+}
+
+qreal NodeCanvas::gapDistance(int row, int gap, const QPointF& scenePos) const {
+    qreal best = QLineF(scenePos, gapScenePos(row, gap)).length();
+    if (m_bandColumns > 0 && gap > 0 && gap % m_bandColumns == 0) {
+        // The same gap at the end of the previous line.
+        const int band = gap / m_bandColumns - 1;
+        const qreal bandLen = m_bandColumns * CanvasMetrics::columnPitch;
+        const qreal x = (band % 2 == 0) ? m_trackBase + bandLen : m_trackBase;
+        const QPointF end(x, getRowCenterY(row) + band * m_bandHeight);
+        best = std::min(best, QLineF(scenePos, end).length());
+    }
+    return best;
+}
+
+int NodeCanvas::nearestGap(int row, const QPointF& scenePos, int maxGap) const {
+    int best = 0;
+    qreal bestDistance = 1e12;
+    for (int g = 0; g <= maxGap; ++g) {
+        const qreal d = gapDistance(row, g, scenePos);
+        if (d < bestDistance) {
+            bestDistance = d;
+            best = g;
+        }
+    }
+    return best;
+}
+
+void NodeCanvas::setSnakeLayout(bool enabled) {
+    if (m_snake == enabled) return;
+    m_snake = enabled;
+    updateLayout();
 }
 
 qreal NodeCanvas::getGapX(int gapIdx) const {
@@ -1165,7 +1308,9 @@ void NodeCanvas::layoutRow(int r, qreal cy, qreal trackLeft, qreal trackRight, q
                 m_scene->addItem(m_nodeWidgets[r][c]);
             }
             qreal nodeH = m_nodeWidgets[r][c]->height();
-            m_nodeWidgets[r][c]->setPos(getColX(c), cy - nodeH / 2.0);
+            const QPointF logicalTopLeft(getColX(c), cy - nodeH / 2.0);
+            m_nodeWidgets[r][c]->setData(kLogicalPosKey, logicalTopLeft);
+            m_nodeWidgets[r][c]->setPos(toSceneBox(logicalTopLeft, m_nodeWidgets[r][c]->width()));
         }
     }
 
@@ -1212,7 +1357,7 @@ void NodeCanvas::layoutRow(int r, qreal cy, qreal trackLeft, qreal trackRight, q
         QPainterPath path;
         path.moveTo(segStartX, cy);
         path.lineTo(segEndX, cy);
-        seg->setPath(path);
+        seg->setPath(toScene(path));
         seg->setPen(getWirePen(r));
         seg->setZValue(-2);
         m_scene->addItem(seg);
@@ -1228,7 +1373,7 @@ void NodeCanvas::layoutRow(int r, qreal cy, qreal trackLeft, qreal trackRight, q
         bpath.moveTo(startX, cy);
         bpath.lineTo(parentSplitX, cy);
         bpath.lineTo(parentSplitX, sysMidY);
-        branch->setPath(bpath);
+        branch->setPath(toScene(bpath));
         branch->setPen(getWirePen(r));
         branch->setZValue(-3);
         m_scene->addItem(branch);
@@ -1236,7 +1381,7 @@ void NodeCanvas::layoutRow(int r, qreal cy, qreal trackLeft, qreal trackRight, q
 
         auto* splitHandle = new RoutingHandleItem(this, r, true);
         qreal splitY = (sysMidY + cy) / 2.0;
-        splitHandle->setPos(parentSplitX, splitY);
+        splitHandle->setPos(toScene(QPointF(parentSplitX, splitY)));
         m_scene->addItem(splitHandle);
         m_dynamicItems.push_back(splitHandle);
 
@@ -1246,7 +1391,7 @@ void NodeCanvas::layoutRow(int r, qreal cy, qreal trackLeft, qreal trackRight, q
         bpathR.moveTo(endX, cy);
         bpathR.lineTo(parentMergeX, cy);
         bpathR.lineTo(parentMergeX, sysMidY);
-        branchR->setPath(bpathR);
+        branchR->setPath(toScene(bpathR));
         branchR->setPen(getWirePen(r));
         branchR->setZValue(-3);
         m_scene->addItem(branchR);
@@ -1254,7 +1399,7 @@ void NodeCanvas::layoutRow(int r, qreal cy, qreal trackLeft, qreal trackRight, q
 
         auto* mergeHandle = new RoutingHandleItem(this, r, false);
         qreal mergeY = (sysMidY + cy) / 2.0;
-        mergeHandle->setPos(parentMergeX, mergeY);
+        mergeHandle->setPos(toScene(QPointF(parentMergeX, mergeY)));
         m_scene->addItem(mergeHandle);
         m_dynamicItems.push_back(mergeHandle);
 
@@ -1275,7 +1420,9 @@ void NodeCanvas::layoutRow(int r, qreal cy, qreal trackLeft, qreal trackRight, q
         bool isOccupied = (row.plugins[c] != nullptr);
         if (isActiveSlot && !isOccupied) {
             auto* plus = new PlusButtonWidget(r, c, PlusButtonWidget::Style::Ghost);
-            plus->setHomePos(QPointF(getColX(c) + PLUG_NODE_W / 2.0, cy));
+            const QPointF logicalHome(getColX(c) + PLUG_NODE_W / 2.0, cy);
+            plus->setData(kLogicalPosKey, logicalHome);
+            plus->setHomePos(toScene(logicalHome));
             m_scene->addItem(plus);
             m_dynamicItems.push_back(plus);
         }
@@ -1306,7 +1453,9 @@ void NodeCanvas::layoutRow(int r, qreal cy, qreal trackLeft, qreal trackRight, q
             auto* marker = new PlusButtonWidget(r, g, PlusButtonWidget::Style::Insert);
             marker->setInsertMode(mode);
             if (!tip.isEmpty()) marker->setToolTip(tip);
-            marker->setHomePos(QPointF(x + offset, cy));
+            const QPointF logicalHome(x + offset, cy);
+            marker->setData(kLogicalPosKey, logicalHome);
+            marker->setHomePos(toScene(logicalHome));
             m_scene->addItem(marker);
             m_dynamicItems.push_back(marker);
         };
@@ -1577,6 +1726,23 @@ void NodeCanvas::drawBackground(QPainter* painter, const QRectF& rect) {
     QGraphicsView::drawBackground(painter, rect);
     // Keep the canvas calm: only fixed-grid columns and the primary lane cue.
     const qreal trackLeft = MARGIN_X + SYS_NODE_W + CanvasMetrics::clearGap;
+    if (m_bandColumns > 0) {
+        // Snake layout: column guides and the lane cue for each line.
+        const qreal mainY = getRowCenterY(MAIN_ROW);
+        const qreal bandLen = m_bandColumns * CanvasMetrics::columnPitch;
+        painter->setPen(QPen(QColor(88, 94, 108, 24), 1));
+        for (int c = 0; c < m_numCols; ++c) {
+            const QPointF at = toScene(QPointF(CanvasMetrics::columnX(trackLeft, c) + CanvasMetrics::cardWidth / 2.0, mainY));
+            const qreal top = at.y() - m_bandHeight / 2.0;
+            painter->drawLine(QPointF(at.x(), top), QPointF(at.x(), top + m_bandHeight));
+        }
+        painter->setPen(QPen(QColor(115, 125, 145, 24), 1));
+        for (int b = 0; b < m_bandCount; ++b) {
+            const qreal y = mainY + b * m_bandHeight;
+            painter->drawLine(QPointF(m_trackBase, y), QPointF(m_trackBase + bandLen, y));
+        }
+        return;
+    }
     painter->setPen(QPen(QColor(88, 94, 108, 24), 1));
     for (int c = 0; c < m_numCols; ++c) {
         const qreal x = CanvasMetrics::columnX(trackLeft, c) + CanvasMetrics::cardWidth / 2.0;
@@ -1876,7 +2042,9 @@ void NodeCanvas::previewInsertColumn(int row, int col) {
                 if (plan.right && c >= col && c < plan.emptyColumn) shift = CanvasMetrics::columnPitch;
                 if (!plan.right && c > plan.emptyColumn && c < col) shift = -CanvasMetrics::columnPitch;
             }
-            setItemTargetPos(nw, QPointF(CanvasMetrics::columnX(trackLeft, c) + shift, nw->pos().y()), true);
+            const QVariant logical = nw->data(kLogicalPosKey);
+            const qreal logicalTop = logical.isValid() ? logical.toPointF().y() : nw->pos().y();
+            setItemTargetPos(nw, toSceneBox(QPointF(CanvasMetrics::columnX(trackLeft, c) + shift, logicalTop), nw->width()), true);
         }
     }
 
@@ -1898,7 +2066,9 @@ void NodeCanvas::previewInsertColumn(int row, int col) {
                 shift = -CanvasMetrics::columnPitch;
             }
         }
-        setItemTargetPos(pb, pb->homePos() + QPointF(shift, 0.0), true);
+        const QVariant logical = pb->data(kLogicalPosKey);
+        setItemTargetPos(pb, logical.isValid() ? toScene(logical.toPointF() + QPointF(shift, 0.0))
+                                               : pb->homePos() + QPointF(shift, 0.0), true);
     }
 
     m_previewInsertCol = col;
@@ -1944,19 +2114,19 @@ void NodeCanvas::setRoutePositions(const qreal splitX[5], const qreal mergeX[5])
         QPainterPath split;
         split.moveTo(splitX[r], items.cy);
         split.lineTo(splitX[r], items.parentY);
-        items.splitPath->setPath(split);
+        items.splitPath->setPath(toScene(split));
         QPainterPath merge;
         merge.moveTo(mergeX[r], items.cy);
         merge.lineTo(mergeX[r], items.parentY);
-        items.mergePath->setPath(merge);
+        items.mergePath->setPath(toScene(merge));
         if (items.wire) {
             QPainterPath wire;
             wire.moveTo(splitX[r], items.cy);
             wire.lineTo(mergeX[r], items.cy);
-            items.wire->setPath(wire);
+            items.wire->setPath(toScene(wire));
         }
-        if (items.splitHandle) items.splitHandle->setPos(splitX[r], handleY);
-        if (items.mergeHandle) items.mergeHandle->setPos(mergeX[r], handleY);
+        if (items.splitHandle) items.splitHandle->setPos(toScene(QPointF(splitX[r], handleY)));
+        if (items.mergeHandle) items.mergeHandle->setPos(toScene(QPointF(mergeX[r], handleY)));
     }
 }
 
@@ -2007,7 +2177,7 @@ void NodeCanvas::setDragGap(int row, int plusIdx, int insert) {
     }
 
     if (row >= 0 && row < NUM_ROWS && landCol >= 0 && landCol < NUM_COLS && m_dragPlaceholderItem) {
-        qreal H = m_scene->sceneRect().height();
+        qreal H = m_layoutHeight > 0.0 ? m_layoutHeight : m_scene->sceneRect().height();
         if (H <= 0.0) H = canvasHeightFor(viewport()->height());
         qreal rowCenters[NUM_ROWS];
         calculateRowCenters(rowCenters, H);
@@ -2016,7 +2186,7 @@ void NodeCanvas::setDragGap(int row, int plusIdx, int insert) {
         qreal slotX = CanvasMetrics::columnX(trackLeft, landCol);
 
         m_dragPlaceholderItem->setRect(0, 0, PLUG_NODE_W, PLUG_NODE_H);
-        m_dragPlaceholderItem->setPos(slotX, rowCenters[row] - PLUG_NODE_H / 2.0);
+        m_dragPlaceholderItem->setPos(toSceneBox(QPointF(slotX, rowCenters[row] - PLUG_NODE_H / 2.0), PLUG_NODE_W));
         m_dragPlaceholderItem->show();
     }
 }
@@ -2351,6 +2521,9 @@ void NodeCanvas::setAutoFit(bool enabled) {
 }
 
 void NodeCanvas::scheduleAutoFit() {
+    // In the snake layout the zoom decides how many blocks fit on a line, so
+    // fitting the board to the view would chase its own tail.
+    if (m_snake) return;
     if (m_autoFit && !m_fitting && m_autoFitTimer) m_autoFitTimer->start();
 }
 
