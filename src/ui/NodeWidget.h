@@ -1,5 +1,7 @@
 #pragma once
 #include <QGraphicsItem>
+#include <QPoint>
+class QTimer;
 #include <vector>
 #include <memory>
 #include "../audio/AudioNode.h"
@@ -9,7 +11,7 @@ class PortWidget;
 class NodeWidget : public QGraphicsItem {
 public:
     NodeWidget(std::shared_ptr<AudioNode> audioNode);
-    ~NodeWidget() override = default;
+    ~NodeWidget() override;
     
     QRectF boundingRect() const override;
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
@@ -49,6 +51,11 @@ private:
     bool m_hovered = false;
     
     QRectF m_bypassRect;
+
+    // Long press (touch): opens the same menu as a right-click.
+    QTimer* m_longPressTimer = nullptr;
+    QPoint m_longPressScreenPos;
+    bool m_longPressFired = false;
 
     // Drag-and-drop
     bool m_dragging = false;

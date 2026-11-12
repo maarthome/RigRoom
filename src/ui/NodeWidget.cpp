@@ -166,6 +166,10 @@ static QString categoryNameFor(const std::shared_ptr<AudioNode>& node) {
     return categoryLabel(effectIconFor(node));
 }
 
+NodeWidget::~NodeWidget() {
+    delete m_longPressTimer;
+}
+
 NodeWidget::NodeWidget(std::shared_ptr<AudioNode> audioNode)
     : m_audioNode(audioNode) {
     setFlags(QGraphicsItem::ItemIsSelectable);
@@ -426,6 +430,25 @@ void NodeWidget::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     m_dragStartPos = event->scenePos();
     m_dragStartItemPos = pos();
     m_dragging = false;
+
+    // Holding a finger on the block opens its menu, like a right-click.
+    m_longPressFired = false;
+    m_longPressScreenPos = event->screenPos();
+    if (!m_longPressTimer) {
+        m_longPressTimer = new QTimer();
+        m_longPressTimer->setSingleShot(true);
+        m_longPressTimer->setInterval(600);
+        QObject::connect(m_longPressTimer, &QTimer::timeout, [this]() {
+            if (m_dragging || !scene() || scene()->views().isEmpty()) return;
+            auto* canvas = dynamic_cast<NodeCanvas*>(scene()->views().first());
+            if (!canvas) return;
+            const auto [row, col] = canvas->findNode(m_audioNode);
+            if (row == -1 || col == -1) return;
+            m_longPressFired = true;
+            emit canvas->nodeContextMenuRequested(row, col, m_longPressScreenPos);
+        });
+    }
+    m_longPressTimer->start();
     
     QGraphicsItem::mousePressEvent(event);
     
@@ -442,6 +465,7 @@ void NodeWidget::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     QPointF delta = event->scenePos() - m_dragStartPos;
     qreal dist = std::sqrt(delta.x() * delta.x() + delta.y() * delta.y());
     
+    if (dist > DRAG_THRESHOLD && m_longPressTimer) m_longPressTimer->stop();  // a drag, not a long press
     if (!m_dragging && dist > DRAG_THRESHOLD) {
         m_dragging = true;
         setCursor(Qt::ClosedHandCursor);
@@ -498,6 +522,13 @@ void NodeWidget::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
 void NodeWidget::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
     if (m_audioNode->getType() == NodeType::SystemInput || m_audioNode->getType() == NodeType::SystemOutput) {
         QGraphicsItem::mouseReleaseEvent(event);
+        return;
+    }
+    if (m_longPressTimer) m_longPressTimer->stop();
+    if (m_longPressFired && !m_dragging) {
+        // The finger lifts after a long press opened the menu: nothing more.
+        m_longPressFired = false;
+        event->accept();
         return;
     }
 

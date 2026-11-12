@@ -913,7 +913,7 @@ void MainWindow::setupUI() {
         "<b>Parameter page</b>: with <i>Full screen</i>, the main screen shows only the board, and "
         "double-tapping a block opens its parameters on a page of their own; BACK returns to the board. "
         "With <i>Below the board</i>, the parameters sit under the board as before.<br><br>"
-        "<b>Parameter knobs per row</b>: how many knobs sit side by side on a plugin's parameter page.<br><br>"
+        "<b>Control buttons per row</b>: how many control buttons sit side by side on a plugin's parameter page.<br><br>"
         "<b>Blocks per row</b>: how many blocks sit on one row of the signal chain before it continues on the "
         "next row, counting System Input and System Output.<br><br>"
         "Text size, screen scale and the sizes of the bank/presets/scenes, top toolbar and corner "
@@ -1002,17 +1002,23 @@ void MainWindow::setupUI() {
     addSectionSize("Bank / Presets / Scenes:", "gui_panel_scale", "Size of the bank, preset A-D and scene buttons");
     addSectionSize("Top Toolbar:", "gui_toolbar_scale", "Size of the items in the top row");
     addSectionSize("Corner Controls:", "gui_corner_scale", "Size of the zoom and column controls in the board's lower-right corner");
+    addSectionSize("Control Button Size:", "gui_param_scale", "Size of the control buttons (knobs, switches) on a plugin's parameter page");
     addSectionSize("Settings Window:", "gui_settings_scale", "Size of the text and fields in this Settings window", 150);
 
-    QSpinBox* perRowSpin = new QSpinBox(m_settingsDialog);
-    perRowSpin->setRange(1, 16);
-    perRowSpin->setValue(std::clamp(QSettings("RigRoom", "RigRoom").value("gui_controls_per_row", 5).toInt(), 1, 16));
-    perRowSpin->setToolTip("Number of parameter knobs side by side on a plugin's parameter page");
-    connect(perRowSpin, &QSpinBox::valueChanged, this, [this](int count) {
-        QSettings("RigRoom", "RigRoom").setValue("gui_controls_per_row", count);
+    // Control buttons (parameter knobs) per row on a plugin's page, from a list.
+    QComboBox* perRowCombo = new QComboBox(m_settingsDialog);
+    for (int count = 1; count <= 12; ++count) perRowCombo->addItem(QString::number(count), count);
+    perRowCombo->setCurrentIndex(std::max(0, perRowCombo->findData(
+        std::clamp(QSettings("RigRoom", "RigRoom").value("gui_controls_per_row", 5).toInt(), 1, 12))));
+    perRowCombo->setToolTip("Number of control buttons side by side on a plugin's parameter page "
+                            "(fewer when they do not fit)");
+    connect(perRowCombo, &QComboBox::currentIndexChanged, this, [this, perRowCombo](int index) {
+        QSettings settings("RigRoom", "RigRoom");
+        settings.setValue("gui_controls_per_row", perRowCombo->itemData(index).toInt());
+        settings.sync();
         if (m_parameterControlNode) showPluginControls(m_parameterControlNode);
     });
-    guiForm->addRow("Parameter Knobs per Row:", perRowSpin);
+    guiForm->insertRow(2, "Control Buttons per Row:", perRowCombo);
 
     // Text size scales the interface's fonts. Stylesheets are built at startup,
     // so the choice is saved now and applied the next time RigRoom starts.
@@ -1799,6 +1805,9 @@ void MainWindow::setupUI() {
         // otherwise). Its pages scroll and the window is kept on screen, so no
         // size limit is needed here.
         if (m_settingsDialog) SectionScale::apply(m_settingsDialog, "gui_settings_scale", QSize(), 150);
+        // The plugin parameter page: its controls are rebuilt for each plugin
+        // and are scaled as they are added.
+        if (m_paramContainer) SectionScale::apply(m_paramContainer, "gui_param_scale");
     }
     {
         const int blockPercent = std::clamp(QSettings("RigRoom", "RigRoom").value("gui_block_scale", 100).toInt(), 50, 200);

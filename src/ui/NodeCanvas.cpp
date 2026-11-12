@@ -467,7 +467,12 @@ NodeCanvas::InsertPlan NodeCanvas::planInsertColumn(int row, int col, int side) 
 }
 
 int NodeCanvas::insertColumn(int row, int col, int side) {
-    const InsertPlan plan = planInsertColumn(row, col, side);
+    InsertPlan plan = planInsertColumn(row, col, side);
+    if (plan.emptyColumn < 0 && m_snake && m_numCols < MAX_COLS) {
+        // Wrapped layout keeps no spare columns: add one at the end.
+        ++m_numCols;
+        plan = planInsertColumn(row, col, side);
+    }
     if (plan.emptyColumn < 0) {
         emit boardFull();
         return -1;
@@ -1000,7 +1005,17 @@ void NodeCanvas::updateLayout() {
     m_splitTool = nullptr;  // deleted with the other scene items
 
     int highestUsedCol = getHighestOccupiedCol();
-    m_numCols = std::clamp(m_numCols, std::max(4, highestUsedCol + 1), MAX_COLS);
+    if (m_snake) {
+        // Wrapped layout: exactly as many columns as are in use, so System
+        // Output follows the last block at the usual spacing. Inserting adds
+        // a column when there is no empty one (insertColumn).
+        m_numCols = std::clamp(highestUsedCol + 1, 1, MAX_COLS);
+    } else {
+        m_numCols = std::clamp(m_numCols, std::max(4, highestUsedCol + 1), MAX_COLS);
+    }
+    // The zoom and column controls are not needed when the board sizes
+    // itself; the SPLIT tool stays, in the corner.
+    if (m_zoomOverlay) m_zoomOverlay->setVisible(!m_snake);
 
     qreal inputW = m_sysInputWidget ? m_sysInputWidget->width() : SYS_NODE_W;
     qreal outputW = m_sysOutputWidget ? m_sysOutputWidget->width() : SYS_NODE_W;
@@ -1077,7 +1092,9 @@ void NodeCanvas::updateLayout() {
             ? m_rowLeft + m_bandColumnsRest * CanvasMetrics::columnPitch + MARGIN_X + 8.0
             : m_trackBase + m_numCols * CanvasMetrics::columnPitch + CanvasMetrics::clearGap + outputW + MARGIN_X + 8.0;
         const qreal boardH = H * m_bandCount + 8.0;
-        const int controls = m_zoomOverlay ? m_zoomOverlay->height() + 24 : 56;
+        const int controls = (m_zoomOverlay && m_zoomOverlay->isVisible())
+            ? m_zoomOverlay->height() + 24
+            : qRound(CanvasMetrics::splitToolHeight * 1.4 * (m_zoomOverlay ? SectionScale::factorOf(m_zoomOverlay) : 1.0)) + 28;
         const double fitW = viewport()->width() / lineW;
         const double fitH = std::max(1, viewport()->height() - controls) / boardH;
         const double target = std::clamp(std::min(fitW, fitH), 0.5, 3.0);
@@ -2579,7 +2596,7 @@ void NodeCanvas::positionSplitTool() {
     m_splitTool->setScale(scale);
     const int toolH = qRound(CanvasMetrics::splitToolHeight * scale);
     int y = viewport()->height() - 16 - toolH;
-    if (m_zoomOverlay) y = m_zoomOverlay->y() + (m_zoomOverlay->height() - toolH) / 2;
+    if (m_zoomOverlay && m_zoomOverlay->isVisible()) y = m_zoomOverlay->y() + (m_zoomOverlay->height() - toolH) / 2;
     m_splitTool->setPos(mapToScene(QPoint(16, y)));
 }
 
