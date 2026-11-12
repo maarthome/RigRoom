@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- In the wrapped board a new split joins the main path again at the end of the row it starts in, instead of at System Output, so its wire no longer winds around every row end.
 - Tapping a parameter value always opens the number pad, also when the keyboard for text fields is turned off; the small window with arrow buttons is gone for good.
 - The plugin list opened from the board is larger (text, rows, buttons) and slides more smoothly with a finger, the categories too.
 - LV2 GUIs that need direct access to the plugin (instance-access/data-access, e.g. DuskVerb and other JUCE-style GUIs) now open inside RigRoom instead of the helper process, where they failed with "Data or instance access missing". X11 GUIs opened inside RigRoom are embedded directly and also get these features.

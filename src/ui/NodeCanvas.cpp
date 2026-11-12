@@ -785,6 +785,15 @@ bool NodeCanvas::createSplitAtPathGap(int parentRow, int gapIndex) {
     section.name = (row == 1 || row == 0) ? "Path B" : "Path C";
     section.splitCol = gapIndex - 1;
     section.mergeCol = -1;
+    if (m_snake && m_bandColumns > 0) {
+        // Wrapped rows: the new path joins again at the end of the row it
+        // starts in, so it never winds around the row ends.
+        const int band = snakeBandOf(gapIndex * CanvasMetrics::columnPitch);
+        const int rowEndGap = qRound(bandStartU(band) / CanvasMetrics::columnPitch) + bandColumnsOf(band);
+        int parentEndGap = m_numCols;
+        if (parentRow != MAIN_ROW && m_rows[parentRow].mergeCol >= 0) parentEndGap = m_rows[parentRow].mergeCol;
+        if (rowEndGap > gapIndex && rowEndGap < parentEndGap) section.mergeCol = rowEndGap;
+    }
     section.splitMode = GridRow::SplitMode::Copy;
     section.splitPosition = 0.0f;
     section.mainInputEnabled = true;
