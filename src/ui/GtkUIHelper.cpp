@@ -682,6 +682,9 @@ struct X11Helper {
                                        qMax(1, screenHeight - kBarHeight), 0,
                                        BlackPixel(display, screen), BlackPixel(display, screen));
         XMapWindow(display, viewport);
+        // The plugin opens its own X connection and creates its window in the
+        // viewport: the viewport must exist on the X server by then.
+        XSync(display, False);
         parentFeature.data = reinterpret_cast<void*>(static_cast<uintptr_t>(viewport));
 
         world = lilv_world_new();

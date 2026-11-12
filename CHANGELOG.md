@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed plugin GUIs in the helper failing to appear (BadWindow errors): the plugin's area now exists on the X server before the plugin creates its window in it.
 - An X error about a plugin window that just went away (BadWindow) no longer ends RigRoom or the plugin GUI; it is logged and ignored.
 - Fixed plugin GUIs (e.g. Ouraverb) growing with every zoom until the screen zoom hit its limit: the plugin is created in its own area below the bar, and a later size change is only shown, not zoomed to again.
 - Less flicker when a plugin GUI opens: the screen zoom is changed only when it really differs, and only after the plugin has settled on its size.
