@@ -34,10 +34,14 @@ public:
   QSize minimumSize() const override;
   QSize sizeHint() const override;
   void setGeometry(const QRect &rect) override;
+  // Place items in a grid of this many per row, sharing the width equally
+  // (each item centred in its cell). 0 flows items as wide as they fit.
+  void setMaxPerRow(int count);
 
 private:
   int layoutItems(const QRect &rect, bool testOnly) const;
   std::vector<QLayoutItem *> m_items;
+  int m_maxPerRow = 0;
 };
 
 class InspectorKnob final : public QDial {

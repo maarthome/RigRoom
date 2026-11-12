@@ -906,6 +906,41 @@ void MainWindow::setupUI() {
     formLayout->addRow("Buffer Size:", m_bufferSizeCombo);
     formLayout->addRow("Default Columns:", defaultTrackSlotsCombo);
 
+    // GUI tab: how the interface looks and behaves on screen.
+    QWidget* guiTab = new QWidget();
+    QVBoxLayout* guiTabLayout = new QVBoxLayout(guiTab);
+    guiTabLayout->setContentsMargins(10, 10, 10, 10);
+    auto* guiBox = new SettingsUi::Group("Screen and Controls", guiTab,
+        "How RigRoom fits your screen.<br><br>"
+        "<b>Parameter page</b>: with <i>Full screen</i>, the main screen shows only the board, and "
+        "double-tapping a block opens its parameters on a page of their own; BACK returns to the board. "
+        "With <i>Below the board</i>, the parameters sit under the board as before.<br><br>"
+        "<b>Controls per row</b>: how many parameter controls sit side by side.<br><br>"
+        "Text size and screen scale take effect the next time RigRoom starts.");
+    guiBox->setStyleSheet(UiScale::css(SettingsUi::kGroupStyle));
+    QFormLayout* guiForm = SettingsUi::form(guiBox);
+
+    QComboBox* paramPageCombo = new QComboBox(m_settingsDialog);
+    paramPageCombo->addItem("Full screen (double-tap a block)", true);
+    paramPageCombo->addItem("Below the board", false);
+    paramPageCombo->setCurrentIndex(QSettings("RigRoom", "RigRoom").value("gui_parameter_page", true).toBool() ? 0 : 1);
+    connect(paramPageCombo, &QComboBox::currentIndexChanged, this, [this, paramPageCombo](int index) {
+        const bool fullScreen = paramPageCombo->itemData(index).toBool();
+        QSettings("RigRoom", "RigRoom").setValue("gui_parameter_page", fullScreen);
+        setParameterPageMode(fullScreen);
+    });
+    guiForm->addRow("Parameter Page:", paramPageCombo);
+
+    QSpinBox* perRowSpin = new QSpinBox(m_settingsDialog);
+    perRowSpin->setRange(1, 16);
+    perRowSpin->setValue(std::clamp(QSettings("RigRoom", "RigRoom").value("gui_controls_per_row", 5).toInt(), 1, 16));
+    perRowSpin->setToolTip("Number of parameter controls side by side");
+    connect(perRowSpin, &QSpinBox::valueChanged, this, [this](int count) {
+        QSettings("RigRoom", "RigRoom").setValue("gui_controls_per_row", count);
+        if (m_parameterControlNode) showPluginControls(m_parameterControlNode);
+    });
+    guiForm->addRow("Controls per Row:", perRowSpin);
+
     // Text size scales the interface's fonts. Stylesheets are built at startup,
     // so the choice is saved now and applied the next time RigRoom starts.
     QComboBox* textSizeCombo = new QComboBox(m_settingsDialog);
@@ -919,7 +954,7 @@ void MainWindow::setupUI() {
     connect(textSizeCombo, &QComboBox::currentIndexChanged, this, [textSizeCombo](int index) {
         UiScale::setPercentSetting(textSizeCombo->itemData(index).toInt());
     });
-    formLayout->addRow("Text Size:", textSizeCombo);
+    guiForm->addRow("Text Size:", textSizeCombo);
 
     // Screen scale shrinks or enlarges the whole interface. Automatic fits the
     // usual layout on the screen, which suits small touchscreens.
@@ -935,10 +970,10 @@ void MainWindow::setupUI() {
     connect(screenScaleCombo, &QComboBox::currentIndexChanged, this, [screenScaleCombo](int index) {
         UiScale::setScreenScaleSetting(screenScaleCombo->itemData(index).toInt());
     });
-    formLayout->addRow("Screen Scale:", screenScaleCombo);
+    guiForm->addRow("Screen Scale:", screenScaleCombo);
     QLabel* textSizeHint = new QLabel("Text size and screen scale take effect the next time RigRoom starts.", m_settingsDialog);
     textSizeHint->setStyleSheet(UiScale::css(SettingsUi::kHintCss));
-    formLayout->addRow(textSizeHint);
+    guiForm->addRow(textSizeHint);
 
     // Preset library: banks of 4 (A-D). Presets stay pinned to their bank and
     // letter; the bank count can't drop below the highest bank in use.
@@ -968,6 +1003,10 @@ void MainWindow::setupUI() {
     m_settingsTabs = mainSettingsTab;
     m_midiTabIndex = mainSettingsTab->addTab(ScreenFit::scrollable(buildMidiSettingsTab()), "MIDI");
     mainSettingsTab->setTabIcon(m_midiTabIndex, SettingsUi::tabIcon(SettingsUi::TabIcon::Midi));
+    guiTabLayout->addWidget(guiBox);
+    guiTabLayout->addStretch();
+    const int guiTabIdx = mainSettingsTab->addTab(ScreenFit::scrollable(guiTab), "GUI");
+    mainSettingsTab->setTabIcon(guiTabIdx, SettingsUi::tabIcon(SettingsUi::TabIcon::Info));
     mainSettingsTab->setTabIcon(audioTabIdx, SettingsUi::tabIcon(SettingsUi::TabIcon::Audio));
 
     // TAB 2: Plugins & Formats
@@ -1624,6 +1663,46 @@ void MainWindow::setupUI() {
     midSplitter->setStretchFactor(1, 0);
     
     mainLayout->addWidget(midSplitter);
+
+    // Full-screen parameter page: double-tapping a block shows its parameters
+    // over the whole window, BACK returns to the board (Settings > GUI).
+    m_paramPage = new QWidget(this);
+    m_paramPage->setObjectName("paramPage");
+    m_paramPage->setAttribute(Qt::WA_StyledBackground, true);
+    m_paramPage->setStyleSheet("QWidget#paramPage { background: #18191D; }");
+    m_paramPageLayout = new QVBoxLayout(m_paramPage);
+    m_paramPageLayout->setContentsMargins(0, 0, 0, 0);
+    m_paramPageLayout->setSpacing(0);
+    {
+        auto* pageBar = new QWidget(m_paramPage);
+        pageBar->setObjectName("paramPageBar");
+        pageBar->setAttribute(Qt::WA_StyledBackground, true);
+        pageBar->setFixedHeight(56);
+        pageBar->setStyleSheet(
+            "QWidget#paramPageBar { background: #2A2A30; border-bottom: 2px solid #00B0FF; }"
+            "QLabel { color: #F0F0F0; font-weight: bold; font-size: 18px; background: transparent; }"
+            "QPushButton { background: #00897B; color: white; border: none; border-radius: 6px;"
+            " padding: 4px 22px; font-weight: bold; font-size: 18px; }"
+            "QPushButton:pressed { background: #00695C; }");
+        auto* barRow = new QHBoxLayout(pageBar);
+        barRow->setContentsMargins(6, 4, 10, 4);
+        barRow->setSpacing(14);
+        auto* back = new QPushButton(QString::fromUtf8("\u25C0  BACK"), pageBar);
+        back->setFocusPolicy(Qt::NoFocus);
+        back->setMinimumHeight(46);
+        back->setMinimumWidth(140);
+        connect(back, &QPushButton::clicked, this, &MainWindow::hideParameterPage);
+        barRow->addWidget(back);
+        m_paramPageTitle = new QLabel(pageBar);
+        barRow->addWidget(m_paramPageTitle, 1);
+        m_paramPageLayout->addWidget(pageBar);
+        auto* escape = new QShortcut(QKeySequence(Qt::Key_Escape), m_paramPage);
+        escape->setContext(Qt::WidgetWithChildrenShortcut);
+        connect(escape, &QShortcut::activated, this, &MainWindow::hideParameterPage);
+    }
+    m_paramPage->hide();
+    installEventFilter(this);  // keeps the page the size of the window
+    setParameterPageMode(QSettings("RigRoom", "RigRoom").value("gui_parameter_page", true).toBool());
     
     // --- STATUS BAR ---
     QWidget* statusBarContainer = new QWidget(this);
@@ -2559,7 +2638,48 @@ void MainWindow::applyInspectorHeight() {
     m_workspaceSplitter->setSizes({total - inspector, inspector});
 }
 
+void MainWindow::setParameterPageMode(bool fullScreen) {
+    m_paramPageMode = fullScreen;
+    if (!m_paramContainer || !m_paramPage || !m_paramPageLayout || !m_workspaceSplitter) return;
+    if (fullScreen) {
+        // Only the board stays on the main screen.
+        if (m_paramContainer->parentWidget() != m_paramPage) {
+            m_paramContainer->setParent(m_paramPage);
+            m_paramPageLayout->addWidget(m_paramContainer, 1);
+        }
+        m_paramContainer->setMinimumHeight(0);
+        m_paramContainer->show();
+    } else {
+        m_paramPage->hide();
+        if (m_paramContainer->parentWidget() != m_workspaceSplitter) {
+            m_workspaceSplitter->addWidget(m_paramContainer);
+            m_workspaceSplitter->setStretchFactor(1, 0);
+        }
+        m_paramContainer->setMinimumHeight(180);
+        m_paramContainer->show();
+        QTimer::singleShot(0, this, &MainWindow::applyInspectorHeight);
+    }
+}
+
+void MainWindow::showParameterPage(std::shared_ptr<AudioNode> node) {
+    if (!m_paramPage) return;
+    showPluginControls(node);
+    if (m_paramPageTitle) m_paramPageTitle->setText(node ? QString::fromStdString(node->getName()) : QString());
+    m_paramPage->setGeometry(rect());
+    m_paramPage->raise();
+    m_paramPage->show();
+    m_paramPage->setFocus();
+}
+
+void MainWindow::hideParameterPage() {
+    if (m_paramPage) m_paramPage->hide();
+}
+
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == this && event->type() == QEvent::Resize && m_paramPage) {
+        m_paramPage->setGeometry(rect());
+        return false;
+    }
     if (watched == m_workspaceSplitter && event->type() == QEvent::Resize) {
         QTimer::singleShot(0, this, &MainWindow::applyInspectorHeight);
         return false;
@@ -6882,6 +7002,8 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
     }
 
     auto* controlFlow = new FlowLayout(nullptr, 8);
+    // Settings > GUI: how many controls side by side (0 = as many as fit).
+    controlFlow->setMaxPerRow(QSettings("RigRoom", "RigRoom").value("gui_controls_per_row", 5).toInt());
     if (hasControlPorts) controlHostLayout->addLayout(controlFlow);
     int controlCount = 0;
 
@@ -7509,6 +7631,12 @@ bool MainWindow::raisePluginUIForNode(AudioNode* node) {
 
 void MainWindow::onPluginDoubleClicked(std::shared_ptr<AudioNode> node) {
     if (!node) return;
+    // Full-screen mode: a double-tap opens the parameter page; the plugin's
+    // own GUI is one button away on that page.
+    if (m_paramPageMode) {
+        showParameterPage(node);
+        return;
+    }
     showPluginControls(node);
 
     if (raisePluginUIForNode(node.get())) {

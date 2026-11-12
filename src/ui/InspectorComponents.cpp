@@ -59,10 +59,36 @@ void FlowLayout::setGeometry(const QRect &rect) {
   QLayout::setGeometry(rect);
   layoutItems(rect, false);
 }
+void FlowLayout::setMaxPerRow(int count) {
+  m_maxPerRow = std::max(0, count);
+  invalidate();
+}
 int FlowLayout::layoutItems(const QRect &rect, bool testOnly) const {
   const auto margins = contentsMargins();
   const QRect area = rect.adjusted(margins.left(), margins.top(),
                                    -margins.right(), -margins.bottom());
+  if (m_maxPerRow > 0) {
+    // Grid: a fixed number per row, the width shared equally.
+    const int columns = m_maxPerRow;
+    const int cellWidth =
+        std::max(1, (area.width() - spacing() * (columns - 1)) / columns);
+    int y = area.y(), rowHeight = 0, column = 0;
+    for (auto *item : m_items) {
+      if (column == columns) {
+        column = 0;
+        y += rowHeight + spacing();
+        rowHeight = 0;
+      }
+      const QSize size = item->sizeHint();
+      const int width = std::min(cellWidth, std::max(size.width(), std::min(cellWidth, item->maximumSize().width())));
+      const int x = area.x() + column * (cellWidth + spacing()) + (cellWidth - width) / 2;
+      if (!testOnly)
+        item->setGeometry(QRect(QPoint(x, y), QSize(width, size.height())));
+      rowHeight = std::max(rowHeight, size.height());
+      ++column;
+    }
+    return y + rowHeight - rect.y() + margins.bottom();
+  }
   int x = area.x(), y = area.y(), rowHeight = 0;
   for (auto *item : m_items) {
     const QSize size = item->sizeHint();

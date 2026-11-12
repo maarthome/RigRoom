@@ -64,6 +64,11 @@ private slots:
     void applyInspectorHeight();
     void showPluginControls(std::shared_ptr<AudioNode> node);
     void onPluginDoubleClicked(std::shared_ptr<AudioNode> node);
+    // Parameters as a full-screen page opened by double-tapping a block, or
+    // the classic deck below the board (Settings > GUI).
+    void setParameterPageMode(bool fullScreen);
+    void showParameterPage(std::shared_ptr<AudioNode> node);
+    void hideParameterPage();
     void openVST3Editor(class VST3PluginNode* node);
     void onPlusButtonClicked(int row, int col, QPoint screenPos, int insert);
     void onInputHardwareChanged(int index);
@@ -262,6 +267,10 @@ private:
     uint32_t m_lastXrunCount = UINT32_MAX;
     
     QWidget* m_paramContainer = nullptr;
+    QWidget* m_paramPage = nullptr;          // full-screen page holding m_paramContainer
+    QVBoxLayout* m_paramPageLayout = nullptr;
+    QLabel* m_paramPageTitle = nullptr;
+    bool m_paramPageMode = true;
     QScrollArea* m_paramScroll = nullptr;
     QVBoxLayout* m_paramLayout = nullptr;
     QLabel* m_noParamLabel = nullptr;

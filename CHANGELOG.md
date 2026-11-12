@@ -18,6 +18,8 @@
 - Plugin windows larger than the screen are fitted to it: RigRoom asks VST3 and CLAP plugins to draw at a smaller scale, resizes plugins that allow it, and lets fixed-size plugin windows scroll.
 - Every plugin window has a Close button at the top, so it can be closed on a screen without a window manager. LV2 X11 GUIs (such as Dragonfly) are started at a smaller LV2 scale factor when they are larger than the screen, never grow past it, and get arrow buttons to pan over a GUI that still does not fit.
 - A plugin window fills the screen when it opens: RigRoom zooms the whole X screen (xrandr) so the plugin fits the panel exactly, for any plugin, and restores the previous zoom when the window closes.
+- Parameters can open as a full-screen page: the main screen shows only the board, and double-tapping a block opens its parameters (BACK returns). Settings > GUI switches between this and the deck below the board.
+- Parameter controls are arranged in rows of a set number (Settings > GUI > Controls per Row, 5 by default). Text Size and Screen Scale moved to the new GUI tab.
 
 ## 0.13.0 - 2026-10-01
 
