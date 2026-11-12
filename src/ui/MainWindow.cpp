@@ -5766,7 +5766,17 @@ static void zoomPluginWindowToScreen(QWidget* window, const QSize& fullLogicalSi
         if (extentPx.isEmpty()) return;
         const QSize extent(qCeil(extentPx.width() / ratio), qCeil(extentPx.height() / ratio));
         const QSize current = window->property("pluginContentSize").toSize();
-        if (extent.width() <= current.width() && extent.height() <= current.height()) return;
+        if (extent.width() <= current.width() && extent.height() <= current.height()) {
+            window->setProperty("pluginPendingSize", QSize());
+            return;
+        }
+        // Wait until the plugin keeps the new size for a moment: each change
+        // zooms the screen, and a plugin still settling would make it flicker.
+        if (window->property("pluginPendingSize").toSize() != extent) {
+            window->setProperty("pluginPendingSize", extent);
+            return;
+        }
+        window->setProperty("pluginPendingSize", QSize());
         std::cerr << "PluginWindow: plugin grew to " << extentPx.width() << "x" << extentPx.height() << std::endl;
         if (watchedArea != pluginContentOf(window)) watchedArea->setFixedSize(extent.expandedTo(current));
         layoutPluginFullScreen(window, extent.expandedTo(current), true);

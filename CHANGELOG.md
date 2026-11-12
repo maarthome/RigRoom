@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Less flicker when a plugin GUI opens: the screen zoom is changed only when it really differs, and only after the plugin has settled on its size.
 - The on-screen keyboard has a BACK key, which leaves the field as it was (like Escape). Number fields and parameter values get a large number pad down the side of the screen away from the control, so the control and its value stay visible.
 - Plugin GUIs that make their window larger than they announced are no longer cut off: the plugin area follows the plugin's real size.
 - Tapping a parameter value opens the on-screen keyboard straight away, with the value in a large entry line at its top; type the new value and press Enter. The small window with arrows is gone.

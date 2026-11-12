@@ -89,6 +89,10 @@ inline QSize enter(const QSize& content) {
     const double fill = qMax(content.width() / double(panel.mode.width()),
                              content.height() / double(panel.mode.height()));
     const double scale = qBound(0.5, fill, 4.0);
+    // Already at (about) this zoom: changing it again only makes the screen
+    // flicker.
+    const double now = panel.screen.width() / double(panel.mode.width());
+    if (qAbs(now - scale) < 0.01) return panel.screen;
     if (!setScale(panel.output, scale)) return QSize();
     return QSize(qRound(scale * panel.mode.width()), qRound(scale * panel.mode.height()));
 }

@@ -444,7 +444,9 @@ struct X11Helper {
     Window window = 0;
     Window child = 0;
     Window viewport = 0;
-    int sizeCheckTicks = 0;  // the part of the screen below the bar that shows the plugin
+    int sizeCheckTicks = 0;
+    int pendingWidth = 0;
+    int pendingHeight = 0;  // the part of the screen below the bar that shows the plugin
     XFontStruct* barFont = nullptr;
     Atom closeMessage = None;
     const LV2UI_Idle_Interface* idle = nullptr;
@@ -832,12 +834,21 @@ struct X11Helper {
             if (++sizeCheckTicks >= 25 && child) {
                 sizeCheckTicks = 0;
                 XWindowAttributes attributes{};
-                if (XGetWindowAttributes(display, child, &attributes) && attributes.width > 1 && attributes.height > 1 &&
-                    (attributes.width != uiWidth || attributes.height != uiHeight)) {
+                // Only once the plugin has kept the new size for a moment, and
+                // only when it grew: each change zooms the screen, and a plugin
+                // still settling would make it flicker.
+                const bool grew = XGetWindowAttributes(display, child, &attributes) && attributes.width > 1 &&
+                                  attributes.height > 1 &&
+                                  (attributes.width > uiWidth || attributes.height > uiHeight);
+                const bool settled = grew && attributes.width == pendingWidth && attributes.height == pendingHeight;
+                pendingWidth = grew ? attributes.width : 0;
+                pendingHeight = grew ? attributes.height : 0;
+                if (settled) {
+                    pendingWidth = pendingHeight = 0;
                     std::fprintf(stderr, "RigRoom UI helper: plugin window is %dx%d (was %dx%d)\n",
                                  attributes.width, attributes.height, uiWidth, uiHeight);
-                    uiWidth = attributes.width;
-                    uiHeight = attributes.height;
+                    uiWidth = qMax(uiWidth, attributes.width);
+                    uiHeight = qMax(uiHeight, attributes.height);
                     layoutView();
                     requestZoom();
                 }
