@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QSize>
 #include <QString>
 #include <QVariant>
 #include <QWidget>
@@ -121,11 +122,21 @@ private:
     double m_factor = 1.0;
 };
 
-// Scale `root` and everything in it by the percentage stored under `key`.
-inline void apply(QWidget* root, const char* key) {
-    if (!root) return;
-    const double factor = percent(key) / 100.0;
-    if (qFuzzyCompare(factor, 1.0)) return;
+// Scale `root` and everything in it by the percentage stored under `key`,
+// but never so far that it no longer fits in `room` (logical pixels; an
+// empty dimension is not limited). Too large a setting shrinks to what fits,
+// down to 50% of the normal size.
+inline double apply(QWidget* root, const char* key, const QSize& room = QSize()) {
+    if (!root) return 1.0;
+    double factor = percent(key) / 100.0;
+    root->ensurePolished();
+    const QSize natural = root->minimumSizeHint().expandedTo(root->minimumSize());
+    if (room.width() > 0 && natural.width() > 0)
+        factor = qMin(factor, room.width() / double(natural.width()));
+    if (room.height() > 0 && natural.height() > 0)
+        factor = qMin(factor, room.height() / double(natural.height()));
+    factor = qMax(0.5, factor);
+    if (qAbs(factor - 1.0) < 0.01) return 1.0;
     // Text not sized by a stylesheet follows the root's font.
     QFont font = root->font();
     if (font.pointSizeF() > 0) font.setPointSizeF(font.pointSizeF() * factor);
@@ -133,6 +144,7 @@ inline void apply(QWidget* root, const char* key) {
     root->setFont(font);
     auto* scaler = new Scaler(factor, root);
     scaler->scaleTree(root);
+    return factor;
 }
 
 // The factor a widget was scaled by (1.0 if none), for custom painting.

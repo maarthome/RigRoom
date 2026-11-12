@@ -68,8 +68,13 @@ int FlowLayout::layoutItems(const QRect &rect, bool testOnly) const {
   const QRect area = rect.adjusted(margins.left(), margins.top(),
                                    -margins.right(), -margins.bottom());
   if (m_maxPerRow > 0) {
-    // Grid: a fixed number per row, the width shared equally.
-    const int columns = m_maxPerRow;
+    // Grid: a fixed number per row, the width shared equally - but never so
+    // many that a control no longer fits; then they wrap onto more rows.
+    int widest = 1;
+    for (auto *item : m_items)
+      widest = std::max(widest, std::min(item->sizeHint().width(), item->maximumSize().width()));
+    const int fitting = std::max(1, (area.width() + spacing()) / (widest + spacing()));
+    const int columns = std::max(1, std::min(m_maxPerRow, fitting));
     const int cellWidth =
         std::max(1, (area.width() - spacing() * (columns - 1)) / columns);
     int y = area.y(), rowHeight = 0, column = 0;

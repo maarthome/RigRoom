@@ -165,8 +165,8 @@ public:
     void zoomIn();
     void zoomOut();
 
-    // Snake layout: the signal path folds into lines that fit the width,
-    // left to right, then right to left, and so on down the screen. The board
+    // Wrapped ("snake") layout: the signal path continues on the next line when
+    // it is wider than the screen, every line left to right. The board
     // still works on one straight track internally; these map its positions
     // ("logical") to where they are drawn ("scene").
     void setSnakeLayout(bool enabled);

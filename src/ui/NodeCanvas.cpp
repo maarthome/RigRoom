@@ -1039,6 +1039,17 @@ void NodeCanvas::updateLayout() {
         // Each line is only as tall as its lanes need; the lines stack.
         H = canvasHeightFor(0.0) + 24.0;
     }
+    if (m_snake && m_snakeColumns > 0) {
+        // A chosen number of blocks per line always fits the width: blocks too
+        // large for it shrink (down to the smallest zoom).
+        const int lineColumns = m_bandColumns > 0 ? m_bandColumns : m_numCols;
+        const qreal lineW = m_trackBase + lineColumns * CanvasMetrics::columnPitch
+                          + CanvasMetrics::clearGap + outputW + MARGIN_X + 16.0;
+        if (lineW > visibleSceneW + 1.0 && m_zoomLevel > 0.501 && viewport()->width() > 0) {
+            const double fitZoom = viewport()->width() / lineW;
+            QTimer::singleShot(0, this, [this, fitZoom]() { applyZoom(fitZoom, true); });
+        }
+    }
     m_layoutHeight = H;
     m_bandHeight = H;
 
@@ -1134,8 +1145,8 @@ void NodeCanvas::updateLayout() {
 
 // ─── Snake layout mapping ─────────────────────────────────────────────────────
 // The logical track runs along x; u is the distance from gap 0. Line b holds
-// u in [b * bandLen, (b + 1) * bandLen]: even lines left to right, odd lines
-// right to left, each one bandHeight further down.
+// u in [b * bandLen, (b + 1) * bandLen], each line left to right and one
+// bandHeight further down, like lines of text.
 
 int NodeCanvas::snakeBandOf(qreal u) const {
     if (m_bandColumns <= 0 || u < 0.0) return 0;
@@ -1150,8 +1161,7 @@ QPointF NodeCanvas::toScene(const QPointF& logical) const {
     const qreal bandLen = m_bandColumns * CanvasMetrics::columnPitch;
     const int band = snakeBandOf(u);
     const qreal v = u - band * bandLen;
-    const qreal x = (band % 2 == 0) ? m_trackBase + v : m_trackBase + bandLen - v;
-    return QPointF(x, logical.y() + band * m_bandHeight);
+    return QPointF(m_trackBase + v, logical.y() + band * m_bandHeight);
 }
 
 QPointF NodeCanvas::toSceneBox(const QPointF& logicalTopLeft, qreal width) const {
@@ -1184,21 +1194,31 @@ QPainterPath NodeCanvas::toScene(const QPainterPath& logical) const {
         const int bandA = snakeBandOf(ua);
         const int bandB = snakeBandOf(ub);
         if (bandA != bandB && qFuzzyCompare(previous.y() + 1.0, point.y() + 1.0)) {
-            // A horizontal wire that runs past the end of a line turns down
-            // (or up) to the next one at the side where both lines meet.
+            // A horizontal wire that runs past the end of a line returns, in
+            // the space between the lines, to the start of the next line.
+            const qreal rightX = m_trackBase + bandLen;
+            const qreal leftX = m_trackBase;
             const int step = bandB > bandA ? 1 : -1;
             for (int band = bandA; band != bandB; band += step) {
                 const int next = band + step;
-                const int turnBand = std::min(band, next);  // the line whose end meets the next
-                const bool rightSide = turnBand % 2 == 0;
-                const qreal edgeX = rightSide ? m_trackBase + bandLen : m_trackBase;
-                const qreal outX = rightSide ? edgeX + turnOut : edgeX - turnOut;
                 const qreal y = point.y() + band * m_bandHeight;
                 const qreal nextY = point.y() + next * m_bandHeight;
-                out.lineTo(edgeX, y);
-                out.lineTo(outX, y);
-                out.lineTo(outX, nextY);
-                out.lineTo(edgeX, nextY);
+                const qreal betweenY = std::max(band, next) * m_bandHeight;  // where the two lines meet
+                if (step > 0) {
+                    out.lineTo(rightX, y);
+                    out.lineTo(rightX + turnOut, y);
+                    out.lineTo(rightX + turnOut, betweenY);
+                    out.lineTo(leftX - turnOut, betweenY);
+                    out.lineTo(leftX - turnOut, nextY);
+                    out.lineTo(leftX, nextY);
+                } else {
+                    out.lineTo(leftX, y);
+                    out.lineTo(leftX - turnOut, y);
+                    out.lineTo(leftX - turnOut, betweenY);
+                    out.lineTo(rightX + turnOut, betweenY);
+                    out.lineTo(rightX + turnOut, nextY);
+                    out.lineTo(rightX, nextY);
+                }
             }
         }
         out.lineTo(toScene(point));
@@ -1217,8 +1237,7 @@ qreal NodeCanvas::gapDistance(int row, int gap, const QPointF& scenePos) const {
         // The same gap at the end of the previous line.
         const int band = gap / m_bandColumns - 1;
         const qreal bandLen = m_bandColumns * CanvasMetrics::columnPitch;
-        const qreal x = (band % 2 == 0) ? m_trackBase + bandLen : m_trackBase;
-        const QPointF end(x, getRowCenterY(row) + band * m_bandHeight);
+        const QPointF end(m_trackBase + bandLen, getRowCenterY(row) + band * m_bandHeight);
         best = std::min(best, QLineF(scenePos, end).length());
     }
     return best;
