@@ -915,17 +915,72 @@ void MainWindow::setupUI() {
     guiTabLayout->setContentsMargins(10, 10, 10, 10);
     auto* guiBox = new SettingsUi::Group("Screen and Controls", guiTab,
         "How RigRoom fits your screen.<br><br>"
-        "<b>Parameter page</b>: with <i>Full screen</i>, the main screen shows only the board, and "
-        "double-tapping a block opens its parameters on a page of their own; BACK returns to the board. "
-        "With <i>Below the board</i>, the parameters sit under the board as before.<br><br>"
-        "<b>Control buttons per row</b>: how many control buttons sit side by side on a plugin's parameter page.<br><br>"
-        "<b>Blocks per row</b>: how many blocks sit on one row of the signal chain before it continues on the "
-        "next row, counting System Input and System Output.<br><br>"
+        "<b>Main screen</b>: <i>Columns</i> is how many blocks sit side by side on a row of the signal chain "
+        "(counting System Input and System Output); <i>Rows</i> is how many rows the screen shows. The blocks "
+        "are sized so that this grid fills the screen; more rows scroll.<br><br>"
+        "<b>Parameter page</b>: with <i>Full screen</i>, double-tapping a block opens its parameters on a page "
+        "of their own; BACK returns to the board. <i>Columns</i> and <i>Rows</i> set the grid of control "
+        "buttons; the buttons are sized to fill the page.<br><br>"
         "Text size, screen scale and the sizes of the bank/presets/scenes, top toolbar and corner "
         "controls take effect the next time RigRoom starts.");
     guiBox->setStyleSheet(UiScale::css(SettingsUi::kGroupStyle));
     QFormLayout* guiForm = SettingsUi::form(guiBox);
 
+    auto settingsHeading = [this, guiForm](const QString& text) {
+        auto* heading = new QLabel(text, m_settingsDialog);
+        heading->setStyleSheet(UiScale::css("color: #00B0FF; font-weight: bold; font-size: 13px; padding-top: 6px;"));
+        guiForm->addRow(heading);
+    };
+    // A list of counts for a touchscreen (no typing): Auto, then from..to.
+    auto countCombo = [this](const QString& autoText, int from, int to, const char* key, int fallback) {
+        auto* combo = new QComboBox(m_settingsDialog);
+        if (!autoText.isEmpty()) combo->addItem(autoText, 0);
+        for (int count = from; count <= to; ++count) combo->addItem(QString::number(count), count);
+        const int saved = QSettings("RigRoom", "RigRoom").value(key, fallback).toInt();
+        combo->setCurrentIndex(std::max(0, combo->findData(saved)));
+        return combo;
+    };
+    auto saveCount = [](const char* key, int value) {
+        QSettings settings("RigRoom", "RigRoom");
+        settings.setValue(key, value);
+        settings.sync();
+    };
+
+    // ── Main screen: the signal chain ──
+    settingsHeading("Main Screen");
+    QComboBox* chainLayoutCombo = new QComboBox(m_settingsDialog);
+    chainLayoutCombo->addItem("Wrap into rows (each row left to right)", true);
+    chainLayoutCombo->addItem("One line", false);
+    chainLayoutCombo->setCurrentIndex(QSettings("RigRoom", "RigRoom").value("gui_snake_layout", true).toBool() ? 0 : 1);
+    chainLayoutCombo->setToolTip("Wrap: the signal path continues at the left of the next row, like lines of text.");
+    connect(chainLayoutCombo, &QComboBox::currentIndexChanged, this, [this, chainLayoutCombo](int index) {
+        const bool snake = chainLayoutCombo->itemData(index).toBool();
+        QSettings("RigRoom", "RigRoom").setValue("gui_snake_layout", snake);
+        if (m_canvas) m_canvas->setSnakeLayout(snake);
+    });
+    guiForm->addRow("Signal Chain:", chainLayoutCombo);
+
+    QComboBox* boardColumnsCombo = countCombo("Auto (fit the width)", 2, NodeCanvas::MAX_COLS, "gui_snake_columns", 0);
+    boardColumnsCombo->setToolTip("Blocks side by side on one row, counting System Input and System Output");
+    connect(boardColumnsCombo, &QComboBox::currentIndexChanged, this, [this, boardColumnsCombo, saveCount](int index) {
+        const int columns = boardColumnsCombo->itemData(index).toInt();
+        saveCount("gui_snake_columns", columns);
+        if (m_canvas) m_canvas->setSnakeColumns(columns);
+    });
+    guiForm->addRow("Columns:", boardColumnsCombo);
+
+    QComboBox* boardRowsCombo = countCombo("Auto (all rows)", 1, 8, "gui_board_rows", 0);
+    boardRowsCombo->setToolTip("Rows of blocks the screen shows; the blocks are sized so that many rows fit "
+                               "(more rows scroll). Used with a number of columns.");
+    connect(boardRowsCombo, &QComboBox::currentIndexChanged, this, [this, boardRowsCombo, saveCount](int index) {
+        const int rows = boardRowsCombo->itemData(index).toInt();
+        saveCount("gui_board_rows", rows);
+        if (m_canvas) m_canvas->setSnakeRows(rows);
+    });
+    guiForm->addRow("Rows:", boardRowsCombo);
+
+    // ── Parameter page: a plugin's control buttons ──
+    settingsHeading("Parameter Page");
     QComboBox* paramPageCombo = new QComboBox(m_settingsDialog);
     paramPageCombo->addItem("Full screen (double-tap a block)", true);
     paramPageCombo->addItem("Below the board", false);
@@ -935,59 +990,32 @@ void MainWindow::setupUI() {
         QSettings("RigRoom", "RigRoom").setValue("gui_parameter_page", fullScreen);
         setParameterPageMode(fullScreen);
     });
-    guiForm->addRow("Parameter Page:", paramPageCombo);
+    guiForm->addRow("Shown:", paramPageCombo);
 
-    QComboBox* chainLayoutCombo = new QComboBox(m_settingsDialog);
-    chainLayoutCombo->addItem("Wrap into rows (each row left to right)", true);
-    chainLayoutCombo->addItem("One line", false);
-    chainLayoutCombo->setCurrentIndex(QSettings("RigRoom", "RigRoom").value("gui_snake_layout", true).toBool() ? 0 : 1);
-    chainLayoutCombo->setToolTip("Wrap: when the signal path is wider than the screen, it continues at the left "
-                                 "of the next row, like lines of text.");
-    connect(chainLayoutCombo, &QComboBox::currentIndexChanged, this, [this, chainLayoutCombo](int index) {
-        const bool snake = chainLayoutCombo->itemData(index).toBool();
-        QSettings("RigRoom", "RigRoom").setValue("gui_snake_layout", snake);
-        if (m_canvas) m_canvas->setSnakeLayout(snake);
+    QComboBox* paramColumnsCombo = countCombo(QString(), 1, 12, "gui_controls_per_row", 5);
+    paramColumnsCombo->setToolTip("Control buttons side by side; they are sized to fill the width");
+    connect(paramColumnsCombo, &QComboBox::currentIndexChanged, this, [this, paramColumnsCombo, saveCount](int index) {
+        saveCount("gui_controls_per_row", paramColumnsCombo->itemData(index).toInt());
+        if (m_parameterControlNode) showPluginControls(m_parameterControlNode);
     });
-    // The board settings come first: they are the ones most looked for.
-    guiForm->insertRow(0, "Signal Chain:", chainLayoutCombo);
+    guiForm->addRow("Columns:", paramColumnsCombo);
 
-    // Columns per row: picked from a list, so a touchscreen needs no typing.
-    QComboBox* perLineCombo = new QComboBox(m_settingsDialog);
-    perLineCombo->addItem("Auto (fit the width)", 0);
-    for (int blocks = 2; blocks <= NodeCanvas::MAX_COLS; ++blocks) perLineCombo->addItem(QString::number(blocks), blocks);
-    {
-        const int saved = std::clamp(QSettings("RigRoom", "RigRoom").value("gui_snake_columns", 0).toInt(), 0, NodeCanvas::MAX_COLS);
-        // 1 is no longer offered (the first row needs the input and a block).
-        perLineCombo->setCurrentIndex(std::max(0, perLineCombo->findData(saved)));
-    }
-    perLineCombo->setToolTip("How many blocks sit on one row of the signal chain, counting System Input and "
-                             "System Output; blocks shrink if that many do not fit the screen");
-    connect(perLineCombo, &QComboBox::currentIndexChanged, this, [this, perLineCombo](int index) {
-        const int columns = perLineCombo->itemData(index).toInt();
-        QSettings settings("RigRoom", "RigRoom");
-        settings.setValue("gui_snake_columns", columns);
-        settings.sync();
-        if (m_canvas) m_canvas->setSnakeColumns(columns);
+    QComboBox* paramRowsCombo = countCombo("Auto (fit the width)", 1, 8, "gui_param_rows", 0);
+    paramRowsCombo->setToolTip("Rows of control buttons the page shows; the buttons are sized so that many rows "
+                               "fit (more rows scroll)");
+    connect(paramRowsCombo, &QComboBox::currentIndexChanged, this, [this, paramRowsCombo, saveCount](int index) {
+        saveCount("gui_param_rows", paramRowsCombo->itemData(index).toInt());
+        if (m_parameterControlNode) showPluginControls(m_parameterControlNode);
     });
-    guiForm->insertRow(1, "Blocks per Row:", perLineCombo);
+    guiForm->addRow("Rows:", paramRowsCombo);
 
-    QSpinBox* blockSizeSpin = new QSpinBox(m_settingsDialog);
-    blockSizeSpin->setRange(50, 200);
-    blockSizeSpin->setSingleStep(10);
-    blockSizeSpin->setSuffix("%");
-    blockSizeSpin->setValue(std::clamp(QSettings("RigRoom", "RigRoom").value("gui_block_scale", 100).toInt(), 50, 200));
-    blockSizeSpin->setToolTip("Size of the plugin blocks on the board");
-    connect(blockSizeSpin, &QSpinBox::valueChanged, this, [this](int percent) {
-        QSettings("RigRoom", "RigRoom").setValue("gui_block_scale", percent);
-        if (m_canvas) m_canvas->setZoomLevel(percent / 100.0);
-    });
-    guiForm->addRow("Plugin Block Size:", blockSizeSpin);
-
+    // ── Everything else ──
+    settingsHeading("Other");
     QComboBox* keyboardCombo = new QComboBox(m_settingsDialog);
     keyboardCombo->addItem("On (when a text field is tapped)", true);
     keyboardCombo->addItem("Off", false);
     keyboardCombo->setCurrentIndex(QSettings("RigRoom", "RigRoom").value("gui_onscreen_keyboard", true).toBool() ? 0 : 1);
-    keyboardCombo->setToolTip("A touch keyboard at the bottom of the screen for typing names and values");
+    keyboardCombo->setToolTip("A touch keyboard for typing names; values always use the number pad");
     connect(keyboardCombo, &QComboBox::currentIndexChanged, this, [keyboardCombo](int index) {
         QSettings("RigRoom", "RigRoom").setValue("gui_onscreen_keyboard", keyboardCombo->itemData(index).toBool());
     });
@@ -1006,24 +1034,8 @@ void MainWindow::setupUI() {
     };
     addSectionSize("Bank / Presets / Scenes:", "gui_panel_scale", "Size of the bank, preset A-D and scene buttons");
     addSectionSize("Top Toolbar:", "gui_toolbar_scale", "Size of the items in the top row");
-    addSectionSize("Corner Controls:", "gui_corner_scale", "Size of the zoom and column controls in the board's lower-right corner");
-    addSectionSize("Control Button Size:", "gui_param_scale", "Size of the control buttons (knobs, switches) on a plugin's parameter page");
+    addSectionSize("Corner Controls:", "gui_corner_scale", "Size of the zoom and column controls in the board's lower-right corner (one-line board)");
     addSectionSize("Settings Window:", "gui_settings_scale", "Size of the text and fields in this Settings window", 150);
-
-    // Control buttons (parameter knobs) per row on a plugin's page, from a list.
-    QComboBox* perRowCombo = new QComboBox(m_settingsDialog);
-    for (int count = 1; count <= 12; ++count) perRowCombo->addItem(QString::number(count), count);
-    perRowCombo->setCurrentIndex(std::max(0, perRowCombo->findData(
-        std::clamp(QSettings("RigRoom", "RigRoom").value("gui_controls_per_row", 5).toInt(), 1, 12))));
-    perRowCombo->setToolTip("Number of control buttons side by side on a plugin's parameter page "
-                            "(fewer when they do not fit)");
-    connect(perRowCombo, &QComboBox::currentIndexChanged, this, [this, perRowCombo](int index) {
-        QSettings settings("RigRoom", "RigRoom");
-        settings.setValue("gui_controls_per_row", perRowCombo->itemData(index).toInt());
-        settings.sync();
-        if (m_parameterControlNode) showPluginControls(m_parameterControlNode);
-    });
-    guiForm->insertRow(2, "Control Buttons per Row:", perRowCombo);
 
     // Text size scales the interface's fonts. Stylesheets are built at startup,
     // so the choice is saved now and applied the next time RigRoom starts.
@@ -1689,6 +1701,7 @@ void MainWindow::setupUI() {
         // Settings > GUI: fold the signal path into lines that fit the width.
         m_canvas->setSnakeLayout(canvasSettings.value("gui_snake_layout", true).toBool());
         m_canvas->setSnakeColumns(canvasSettings.value("gui_snake_columns", 0).toInt());
+        m_canvas->setSnakeRows(canvasSettings.value("gui_board_rows", 0).toInt());
         connect(m_canvas, &NodeCanvas::autoFitChanged, this, [](bool enabled) {
             QSettings("RigRoom", "RigRoom").setValue("canvas_auto_fit", enabled);
         });
@@ -1810,17 +1823,6 @@ void MainWindow::setupUI() {
         // otherwise). Its pages scroll and the window is kept on screen, so no
         // size limit is needed here.
         if (m_settingsDialog) SectionScale::apply(m_settingsDialog, "gui_settings_scale", QSize(), 150);
-        // The plugin parameter page: its controls are rebuilt for each plugin
-        // and are scaled as they are added.
-        if (m_paramContainer) SectionScale::apply(m_paramContainer, "gui_param_scale");
-    }
-    {
-        const int blockPercent = std::clamp(QSettings("RigRoom", "RigRoom").value("gui_block_scale", 100).toInt(), 50, 200);
-        if (m_canvas && blockPercent != 100) {
-            QTimer::singleShot(0, this, [this, blockPercent]() {
-                if (m_canvas) m_canvas->setZoomLevel(blockPercent / 100.0);
-            });
-        }
     }
     setParameterPageMode(QSettings("RigRoom", "RigRoom").value("gui_parameter_page", true).toBool());
     
@@ -7377,6 +7379,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
     controlFlow->setMaxPerRow(QSettings("RigRoom", "RigRoom").value("gui_controls_per_row", 5).toInt());
     if (hasControlPorts) controlHostLayout->addLayout(controlFlow);
     int controlCount = 0;
+    QList<QPointer<QWidget>> controlTiles;
 
     for (auto& param : node->getControlPorts()) {
         if (param.isOutput) continue; // Skip meter outputs
@@ -7606,9 +7609,49 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         }
         
         controlFlow->addWidget(rowWidget);
+        controlTiles.push_back(rowWidget);
         ++controlCount;
     }
     if (controlCount == 0) delete controlFlow;
+
+    // Settings > GUI > Parameter Page: the control buttons are sized so that
+    // the chosen columns fill the page's width and the chosen rows (if any)
+    // its height. Done once the page is laid out.
+    if (controlCount > 0 && m_paramScroll) {
+        QPointer<QScrollArea> scroll(m_paramScroll);
+        QTimer::singleShot(60, this, [scroll, controlTiles]() {
+            if (!scroll || controlTiles.isEmpty() || !controlTiles.first()) return;
+            QSettings settings("RigRoom", "RigRoom");
+            const int columns = std::clamp(settings.value("gui_controls_per_row", 5).toInt(), 1, 12);
+            const int rows = std::clamp(settings.value("gui_param_rows", 0).toInt(), 0, 8);
+            constexpr int kSpacing = 8;
+            QSize natural(1, 1);
+            for (const auto& tile : controlTiles)
+                if (tile) natural = natural.expandedTo(QSize(tile->width() > 0 ? tile->minimumWidth() : 112,
+                                                            tile->sizeHint().height()));
+            if (natural.width() <= 1) natural.setWidth(112);
+            const QWidget* viewport = scroll->viewport();
+            const int width = viewport->width() - 24;  // the section's margins
+            const int top = controlTiles.first()->mapTo(scroll->widget(), QPoint(0, 0)).y();
+            const int height = viewport->height() - top - 12;
+            double factor = (width - kSpacing * (columns - 1)) / double(columns * (natural.width() + kSpacing));
+            if (rows > 0)
+                factor = std::min(factor, (height - kSpacing * (rows - 1)) / double(rows * (natural.height() + kSpacing)));
+            factor = std::clamp(factor, 0.6, 3.0);
+            if (std::abs(factor - 1.0) < 0.03) return;
+            std::cerr << "ParameterPage: " << columns << " x " << (rows > 0 ? QString::number(rows).toStdString() : "auto")
+                      << " controls, scale " << factor << std::endl;
+            for (const auto& tile : controlTiles) {
+                if (!tile) continue;
+                auto* scaler = new SectionScale::Scaler(factor, tile);
+                QFont font = tile->font();
+                if (font.pointSizeF() > 0) font.setPointSizeF(font.pointSizeF() * factor);
+                else if (font.pixelSize() > 0) font.setPixelSize(qRound(font.pixelSize() * factor));
+                tile->setFont(font);
+                scaler->scaleTree(tile);
+            }
+        });
+    }
     
     // Add custom file picker buttons dynamically for any file-loading parameters
     if (!fileProps.empty()) {

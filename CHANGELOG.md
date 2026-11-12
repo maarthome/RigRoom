@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Settings > GUI is regrouped. Main Screen: Signal Chain, Columns and Rows; the blocks are sized so that this grid fills the screen. Parameter Page: Shown, Columns and Rows; the control buttons are sized to fill the page. Plugin Block Size and Control Button Size are gone, since rows and columns now set those sizes.
 - In the wrapped board a new split joins the main path again at the end of the row it starts in, instead of at System Output, so its wire no longer winds around every row end.
 - Tapping a parameter value always opens the number pad, also when the keyboard for text fields is turned off; the small window with arrow buttons is gone for good.
 - The plugin list opened from the board is larger (text, rows, buttons) and slides more smoothly with a finger, the categories too.

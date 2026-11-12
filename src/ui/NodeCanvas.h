@@ -173,6 +173,7 @@ public:
     bool snakeLayout() const { return m_snake; }
     // Blocks per line in the snake layout; 0 = as many as fit the width.
     void setSnakeColumns(int columns);
+    void setSnakeRows(int rows);
     // The zoom box in the lower-right corner, e.g. to scale it; call
     // refreshZoomOverlay() after changing its size.
     QFrame* zoomOverlay() const { return m_zoomOverlay; }
@@ -244,6 +245,7 @@ private:
     qreal bandStartU(int band) const;    // track distance where line `band` starts
     qreal bandLeftX(int band) const;     // scene x of the start of line `band`
     bool m_snake = false;
+    int m_snakeRows = 0;       // rows of blocks the screen shows; 0 = all of them
     int m_snakeColumns = 0;    // chosen blocks per row (input/output count); 0 = fit the width
     double m_preferredZoom = 1.0; // zoom the user chose; fitting a row may go below it
     int m_bandColumns = 0;     // columns on the first line; 0 = one straight line

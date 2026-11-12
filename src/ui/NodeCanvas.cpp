@@ -1105,7 +1105,9 @@ void NodeCanvas::updateLayout() {
                 right = std::max(right, bandLeftX(b) + bandColumnsOf(b) * CanvasMetrics::columnPitch);
             lineW = right + 16.0 + MARGIN_X / 2.0 + 8.0;
         }
-        const qreal boardH = H * m_bandCount + 8.0;
+        // A chosen number of rows on the screen sizes the blocks; more rows
+        // than that scroll.
+        const qreal boardH = H * (m_snakeRows > 0 ? m_snakeRows : m_bandCount) + 8.0;
         const int controls = (m_zoomOverlay && m_zoomOverlay->isVisible()) ? m_zoomOverlay->height() + 24 : 8;
         const double fitW = viewport()->width() / lineW;
         const double fitH = std::max(1, viewport()->height() - controls) / boardH;
@@ -1352,6 +1354,13 @@ void NodeCanvas::setSnakeColumns(int columns) {
     columns = std::clamp(columns, 0, MAX_COLS);
     if (m_snakeColumns == columns) return;
     m_snakeColumns = columns;
+    updateLayout();
+}
+
+void NodeCanvas::setSnakeRows(int rows) {
+    rows = std::clamp(rows, 0, 12);
+    if (m_snakeRows == rows) return;
+    m_snakeRows = rows;
     updateLayout();
 }
 
