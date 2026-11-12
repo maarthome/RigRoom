@@ -426,25 +426,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     if (!windowGeometry.isEmpty()) restoreGeometry(windowGeometry);
     // Small screens (a Raspberry Pi touchscreen): the window fills the screen,
     // and when the controls need more room than the screen has they scroll
-    // instead of running off its edge.
-    {
-        const QRect area = ScreenFit::availableArea(this);
-        if (area.isValid()) {
-            QWidget* content = centralWidget();
-            const QSize needed = content ? content->minimumSizeHint() : QSize();
-            if (content && (needed.width() > area.width() || needed.height() > area.height())) {
-                takeCentralWidget();
-                setCentralWidget(ScreenFit::scrollable(content, this));
-            }
-            // Scaled down to fit a small screen: always use all of it.
-            const bool scaledDown = qEnvironmentVariable("QT_SCALE_FACTOR").toDouble() < 1.0;
-            if (scaledDown || !area.contains(geometry()) || width() > area.width() || height() > area.height()) {
-                setMinimumSize(minimumSize().boundedTo(area.size()));
-                setGeometry(area);
-                setWindowState(windowState() | Qt::WindowMaximized);
-            }
-        }
-    }
+    // instead of running off its edge. Checked again whenever the contents
+    // change, e.g. when a preset brings more scene buttons.
+    m_fitContent = centralWidget();
+    if (m_fitContent) m_fitContent->installEventFilter(this);
+    fitToScreen();
     // The inspector keeps its height in pixels; applyInspectorHeight() fits it
     // in whenever the workspace changes size, so a window that is maximized
     // after start-up still gets the remembered height.
@@ -2759,7 +2745,34 @@ void MainWindow::hideParameterPage() {
     if (m_paramPage) m_paramPage->hide();
 }
 
+void MainWindow::fitToScreen() {
+    const QRect area = ScreenFit::availableArea(this);
+    if (!area.isValid() || !m_fitContent) return;
+    const QSize needed = m_fitContent->minimumSizeHint();
+    if ((needed.width() > area.width() || needed.height() > area.height()) && centralWidget() == m_fitContent) {
+        takeCentralWidget();
+        setCentralWidget(ScreenFit::scrollable(m_fitContent, this));
+        std::cerr << "RigRoom: controls need " << needed.width() << "x" << needed.height()
+                  << ", screen has " << area.width() << "x" << area.height() << "; scrolling" << std::endl;
+    }
+    // Scaled down to fit a small screen: always use all of it, never more.
+    const bool scaledDown = qEnvironmentVariable("QT_SCALE_FACTOR").toDouble() < 1.0;
+    if (scaledDown || !area.contains(geometry()) || width() > area.width() || height() > area.height()) {
+        setMinimumSize(minimumSize().boundedTo(area.size()));
+        if (geometry() != area) setGeometry(area);
+        if (!(windowState() & Qt::WindowMaximized)) setWindowState(windowState() | Qt::WindowMaximized);
+    }
+}
+
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    if (watched == m_fitContent && event->type() == QEvent::LayoutRequest && !m_fitPending) {
+        m_fitPending = true;
+        QTimer::singleShot(0, this, [this]() {
+            m_fitPending = false;
+            fitToScreen();
+        });
+        return false;
+    }
     if (watched == this && event->type() == QEvent::Resize && m_paramPage) {
         m_paramPage->setGeometry(rect());
         return false;
@@ -3520,7 +3533,8 @@ void MainWindow::rebuildSceneBar() {
         tile->setName(scene.name);
         tile->setAccent(QColor(scene.color.isEmpty() ? SceneModel::defaultColor(i) : scene.color));
         tile->setState(i == m_scenes.activeIndex() ? FootswitchTile::State::Active : FootswitchTile::State::Normal);
-        tile->setFixedWidth(128);
+        // Shrinks (down to its minimum) when the row is wider than the screen.
+        tile->setMaximumWidth(128);
         tile->setToolTip(QString("Scene %1: %2 (Alt+%1)\nDouble-click to rename · right-click for more").arg(i + 1).arg(scene.name));
         tile->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(tile, &FootswitchTile::clicked, this, [this, i]() { m_rig->selectScene(i); });
@@ -3670,7 +3684,7 @@ void MainWindow::rebuildSlotButtons() {
         QWidget* parent = m_bankLabel->parentWidget()->parentWidget();
         for (int i = 0; i < perBank; ++i) {
             auto* tile = new FootswitchTile(parent);
-            tile->setFixedWidth(140);
+            tile->setMaximumWidth(140);  // shrinks when the row is wider than the screen
             tile->setContextMenuPolicy(Qt::CustomContextMenu);
             connect(tile, &FootswitchTile::clicked, this, [this, i]() { onSlotButtonClicked(i); });
             connect(tile, &FootswitchTile::doubleClicked, this, [this, i, tile]() {

@@ -39,7 +39,12 @@ QSize FootswitchTile::sizeHint() const {
     const qreal scale = SectionScale::factorOf(this);
     return {qRound(128 * scale), qRound(44 * scale)};
 }
-QSize FootswitchTile::minimumSizeHint() const { return {64, 44}; }
+QSize FootswitchTile::minimumSizeHint() const {
+    // Narrow enough that a row of presets and scenes fits a small screen; the
+    // name is shortened to fit.
+    const qreal scale = SectionScale::factorOf(this);
+    return {qRound(52 * scale), qRound(44 * scale)};
+}
 
 void FootswitchTile::mouseDoubleClickEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {

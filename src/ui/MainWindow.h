@@ -67,6 +67,8 @@ private slots:
     // Parameters as a full-screen page opened by double-tapping a block, or
     // the classic deck below the board (Settings > GUI).
     void setParameterPageMode(bool fullScreen);
+    // Keep the window on the screen: fill it, and scroll what does not fit.
+    void fitToScreen();
     void showParameterPage(std::shared_ptr<AudioNode> node);
     void hideParameterPage();
     void openVST3Editor(class VST3PluginNode* node);
@@ -268,6 +270,8 @@ private:
     
     QWidget* m_paramContainer = nullptr;
     QWidget* m_paramPage = nullptr;          // full-screen page holding m_paramContainer
+    QWidget* m_fitContent = nullptr;         // the window's contents, watched by fitToScreen()
+    bool m_fitPending = false;
     QVBoxLayout* m_paramPageLayout = nullptr;
     QLabel* m_paramPageTitle = nullptr;
     bool m_paramPageMode = true;
