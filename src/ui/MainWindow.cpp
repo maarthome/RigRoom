@@ -902,8 +902,9 @@ void MainWindow::setupUI() {
         "<b>Parameter page</b>: with <i>Full screen</i>, the main screen shows only the board, and "
         "double-tapping a block opens its parameters on a page of their own; BACK returns to the board. "
         "With <i>Below the board</i>, the parameters sit under the board as before.<br><br>"
-        "<b>Controls per row</b>: how many parameter controls sit side by side.<br><br>"
-        "<b>Plugins per line</b>: how many blocks sit on one row before the chain continues on the next.<br><br>"
+        "<b>Parameter knobs per row</b>: how many knobs sit side by side on a plugin's parameter page.<br><br>"
+        "<b>Plugins per row</b>: how many plugin blocks sit on one row of the signal chain before it continues "
+        "on the next row.<br><br>"
         "Text size, screen scale and the sizes of the bank/presets/scenes, top toolbar and corner "
         "controls take effect the next time RigRoom starts.");
     guiBox->setStyleSheet(UiScale::css(SettingsUi::kGroupStyle));
@@ -931,7 +932,8 @@ void MainWindow::setupUI() {
         QSettings("RigRoom", "RigRoom").setValue("gui_snake_layout", snake);
         if (m_canvas) m_canvas->setSnakeLayout(snake);
     });
-    guiForm->addRow("Signal Chain:", chainLayoutCombo);
+    // The board settings come first: they are the ones most looked for.
+    guiForm->insertRow(0, "Signal Chain:", chainLayoutCombo);
 
     QSpinBox* perLineSpin = new QSpinBox(m_settingsDialog);
     perLineSpin->setRange(0, NodeCanvas::MAX_COLS);
@@ -943,7 +945,7 @@ void MainWindow::setupUI() {
         QSettings("RigRoom", "RigRoom").setValue("gui_snake_columns", count);
         if (m_canvas) m_canvas->setSnakeColumns(count);
     });
-    guiForm->addRow("Plugins per Line:", perLineSpin);
+    guiForm->insertRow(1, "Plugins per Row:", perLineSpin);
 
     QSpinBox* blockSizeSpin = new QSpinBox(m_settingsDialog);
     blockSizeSpin->setRange(50, 200);
@@ -986,12 +988,12 @@ void MainWindow::setupUI() {
     QSpinBox* perRowSpin = new QSpinBox(m_settingsDialog);
     perRowSpin->setRange(1, 16);
     perRowSpin->setValue(std::clamp(QSettings("RigRoom", "RigRoom").value("gui_controls_per_row", 5).toInt(), 1, 16));
-    perRowSpin->setToolTip("Number of parameter controls side by side");
+    perRowSpin->setToolTip("Number of parameter knobs side by side on a plugin's parameter page");
     connect(perRowSpin, &QSpinBox::valueChanged, this, [this](int count) {
         QSettings("RigRoom", "RigRoom").setValue("gui_controls_per_row", count);
         if (m_parameterControlNode) showPluginControls(m_parameterControlNode);
     });
-    guiForm->addRow("Controls per Row:", perRowSpin);
+    guiForm->addRow("Parameter Knobs per Row:", perRowSpin);
 
     // Text size scales the interface's fonts. Stylesheets are built at startup,
     // so the choice is saved now and applied the next time RigRoom starts.

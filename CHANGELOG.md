@@ -19,9 +19,9 @@
 - Every plugin window has a Close button at the top, so it can be closed on a screen without a window manager. LV2 X11 GUIs (such as Dragonfly) are started at a smaller LV2 scale factor when they are larger than the screen, never grow past it, and get arrow buttons to pan over a GUI that still does not fit.
 - A plugin window fills the screen when it opens: RigRoom zooms the whole X screen (xrandr) so the plugin fits the panel exactly, for any plugin, and restores the previous zoom when the window closes.
 - Parameters can open as a full-screen page: the main screen shows only the board, and double-tapping a block opens its parameters (BACK returns). Settings > GUI switches between this and the deck below the board.
-- Parameter controls are arranged in rows of a set number (Settings > GUI > Controls per Row, 5 by default). Text Size and Screen Scale moved to the new GUI tab.
+- Parameter controls are arranged in rows of a set number (Settings > GUI > Parameter Knobs per Row, 5 by default). Text Size and Screen Scale moved to the new GUI tab.
 - The signal path can wrap into rows: when it is wider than the screen it continues at the left of the next row, like lines of text (Settings > GUI > Signal Chain).
-- Settings > GUI also sets Plugins per Line, Plugin Block Size, and the sizes of the bank/presets/scenes buttons, the top toolbar and the board's corner controls. No size can push a part off the screen: it shrinks to what fits.
+- Settings > GUI also sets Plugins per Row, Plugin Block Size, and the sizes of the bank/presets/scenes buttons, the top toolbar and the board's corner controls. No size can push a part off the screen: it shrinks to what fits.
 - Wrapped rows of plugin blocks after the first start at the left edge, under the input block.
 - The Settings window is 1.5 times larger by default (Settings > GUI > Settings Window).
 - An on-screen keyboard appears when a text or number field is tapped; the field's window moves up so the keyboard does not cover it (Settings > GUI > On-screen Keyboard).
