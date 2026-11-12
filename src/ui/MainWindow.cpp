@@ -5451,12 +5451,26 @@ public:
             setFixedSize(logicalW, logicalH + barHeight);
         }
 
-        // Create raw X11 child window as a child of the QDialog's X11 window
-        WId dialogWinId = this->winId();
+        // The plugin gets an area of its own below the plugin bar: a widget
+        // with its own X11 window, laid out by Qt. The plugin's X11 window is
+        // created inside it, so the plugin can never cover the bar.
+        m_containerWidget = new QWidget(this);
+        m_containerWidget->setAttribute(Qt::WA_NativeWindow);
+        m_containerWidget->setAttribute(Qt::WA_NoSystemBackground);
+        m_containerWidget->setAttribute(Qt::WA_OpaquePaintEvent);
+        m_containerWidget->setMinimumSize(1, 1);
+        if (m_scrolls) {
+            m_containerWidget->setFixedSize(logicalW, logicalH);
+            layout->addWidget(ScreenFit::scrollable(m_containerWidget, this));
+        } else {
+            layout->addWidget(m_containerWidget);
+        }
+
+        const WId hostWinId = m_containerWidget->winId();
         int screen = DefaultScreen(m_dpy);
         m_x11Container = XCreateSimpleWindow(
             m_dpy,
-            (Window)dialogWinId,
+            (Window)hostWinId,
             0, 0,
             m_nativeWidth, m_nativeHeight,
             0,
@@ -5468,15 +5482,15 @@ public:
         XMapWindow(m_dpy, m_x11Container);
         XFlush(m_dpy);
 
-        // Wrap raw X11 container into Qt's createWindowContainer to prevent backing store overpaint
-        QWindow* foreignWin = QWindow::fromWinId(m_x11Container);
-        m_containerWidget = QWidget::createWindowContainer(foreignWin, this);
-        if (m_scrolls) {
-            m_containerWidget->setFixedSize(logicalW, logicalH);
-            layout->addWidget(ScreenFit::scrollable(m_containerWidget, this));
-        } else {
-            layout->addWidget(m_containerWidget);
-        }
+        // Where things ended up, to diagnose plugin windows on small screens.
+        QTimer::singleShot(800, this, [this]() {
+            if (!m_containerWidget) return;
+            const QPoint at = m_containerWidget->mapTo(this, QPoint(0, 0));
+            std::cerr << "PluginWindow: window " << x() << "," << y() << " " << width() << "x" << height()
+                      << ", plugin area at " << at.x() << "," << at.y() << " "
+                      << m_containerWidget->width() << "x" << m_containerWidget->height()
+                      << " (logical px), plugin " << m_nativeWidth << "x" << m_nativeHeight << " device px" << std::endl;
+        });
 
         // Mirror parameter changes made in RigRoom (controls, MIDI, scenes,
         // presets) into the plugin GUI, like the LV2 UI port sync.
@@ -5741,11 +5755,26 @@ public:
         
         resize(ScreenFit::bounded(QSize(logicalW, logicalH + barHeight), this));
 
-        WId dialogWinId = this->winId();
+        // The plugin gets an area of its own below the plugin bar: a widget
+        // with its own X11 window, laid out by Qt. The plugin's X11 window is
+        // created inside it, so the plugin can never cover the bar.
+        m_containerWidget = new QWidget(this);
+        m_containerWidget->setAttribute(Qt::WA_NativeWindow);
+        m_containerWidget->setAttribute(Qt::WA_NoSystemBackground);
+        m_containerWidget->setAttribute(Qt::WA_OpaquePaintEvent);
+        m_containerWidget->setMinimumSize(1, 1);
+        if (m_scrolls) {
+            m_containerWidget->setFixedSize(logicalW, logicalH);
+            layout->addWidget(ScreenFit::scrollable(m_containerWidget, this));
+        } else {
+            layout->addWidget(m_containerWidget);
+        }
+
+        const WId hostWinId = m_containerWidget->winId();
         int screen = DefaultScreen(m_dpy);
         m_x11Container = XCreateSimpleWindow(
             m_dpy,
-            (Window)dialogWinId,
+            (Window)hostWinId,
             0, 0,
             m_nativeWidth, m_nativeHeight,
             0,
@@ -5757,14 +5786,15 @@ public:
         XMapWindow(m_dpy, m_x11Container);
         XFlush(m_dpy);
 
-        QWindow* foreignWin = QWindow::fromWinId(m_x11Container);
-        m_containerWidget = QWidget::createWindowContainer(foreignWin, this);
-        if (m_scrolls) {
-            m_containerWidget->setFixedSize(logicalW, logicalH);
-            layout->addWidget(ScreenFit::scrollable(m_containerWidget, this));
-        } else {
-            layout->addWidget(m_containerWidget);
-        }
+        // Where things ended up, to diagnose plugin windows on small screens.
+        QTimer::singleShot(800, this, [this]() {
+            if (!m_containerWidget) return;
+            const QPoint at = m_containerWidget->mapTo(this, QPoint(0, 0));
+            std::cerr << "PluginWindow: window " << x() << "," << y() << " " << width() << "x" << height()
+                      << ", plugin area at " << at.x() << "," << at.y() << " "
+                      << m_containerWidget->width() << "x" << m_containerWidget->height()
+                      << " (logical px), plugin " << m_nativeWidth << "x" << m_nativeHeight << " device px" << std::endl;
+        });
 
         m_node->setResizeCallback([this](uint32_t w, uint32_t h) {
             QMetaObject::invokeMethod(this, [this, w, h]() {
