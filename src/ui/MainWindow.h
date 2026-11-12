@@ -274,6 +274,15 @@ private:
     bool m_fitPending = false;
     QVBoxLayout* m_paramPageLayout = nullptr;
     QLabel* m_paramPageTitle = nullptr;
+    // Paging through a plugin's control buttons (Settings > GUI > Rows).
+    QPushButton* m_controlPageUp = nullptr;
+    QPushButton* m_controlPageDown = nullptr;
+    QLabel* m_controlPageLabel = nullptr;
+    QList<QPointer<QWidget>> m_controlTiles;
+    int m_controlPage = 0;
+    std::string m_controlPageNodeId;
+    void applyControlPage();
+    void stepControlPage(int step);
     bool m_paramPageMode = true;
     QScrollArea* m_paramScroll = nullptr;
     QVBoxLayout* m_paramLayout = nullptr;

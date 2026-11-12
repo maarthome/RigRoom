@@ -74,13 +74,15 @@ int FlowLayout::layoutItems(const QRect &rect, bool testOnly) const {
     // many that a control no longer fits; then they wrap onto more rows.
     int widest = 1;
     for (auto *item : m_items)
-      widest = std::max(widest, std::min(item->sizeHint().width(), item->maximumSize().width()));
+      if (!item->isEmpty())
+        widest = std::max(widest, std::min(item->sizeHint().width(), item->maximumSize().width()));
     const int fitting = std::max(1, (area.width() + spacing()) / (widest + spacing()));
     const int columns = std::max(1, std::min(m_maxPerRow, fitting));
     const int cellWidth =
         std::max(1, (area.width() - spacing() * (columns - 1)) / columns);
     int y = area.y(), rowHeight = 0, column = 0;
     for (auto *item : m_items) {
+      if (item->isEmpty()) continue;  // hidden (another page of controls)
       if (column == columns) {
         column = 0;
         y += rowHeight + spacing();
@@ -98,6 +100,7 @@ int FlowLayout::layoutItems(const QRect &rect, bool testOnly) const {
   }
   int x = area.x(), y = area.y(), rowHeight = 0;
   for (auto *item : m_items) {
+    if (item->isEmpty()) continue;
     const QSize size = item->sizeHint();
     if (x + size.width() > area.right() + 1 && rowHeight > 0) {
       x = area.x();

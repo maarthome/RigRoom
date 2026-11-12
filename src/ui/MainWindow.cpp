@@ -1741,7 +1741,8 @@ void MainWindow::setupUI() {
     paramScroll->setWidgetResizable(true);
     paramScroll->setFrameShape(QFrame::NoFrame);
     paramScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    paramScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    // No scroll bar: the parameter page's arrow buttons page up and down.
+    paramScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     paramScroll->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     auto* paramContent = new QWidget(paramScroll);
     auto* paramContentLayout = new QHBoxLayout(paramContent);
@@ -1795,6 +1796,25 @@ void MainWindow::setupUI() {
         barRow->addWidget(back);
         m_paramPageTitle = new QLabel(pageBar);
         barRow->addWidget(m_paramPageTitle, 1);
+        // Page up / down through the control buttons (no scroll bar).
+        auto makeArrow = [&](const char* text, int step) {
+            auto* arrow = new QPushButton(QString::fromUtf8(text), pageBar);
+            arrow->setFocusPolicy(Qt::NoFocus);
+            arrow->setMinimumSize(72, 46);
+            arrow->setStyleSheet("QPushButton { background: #3A3D47; color: white; border: none; border-radius: 6px;"
+                                 " font-size: 22px; font-weight: bold; padding: 0px 10px; }"
+                                 "QPushButton:pressed { background: #00B0FF; color: #07121A; }"
+                                 "QPushButton:disabled { background: #26282E; color: #50535C; }");
+            connect(arrow, &QPushButton::clicked, this, [this, step]() { stepControlPage(step); });
+            return arrow;
+        };
+        m_controlPageLabel = new QLabel(pageBar);
+        m_controlPageLabel->setStyleSheet("color: #9FA8B8; font-size: 16px; background: transparent;");
+        m_controlPageUp = makeArrow("\u25B2", -1);
+        m_controlPageDown = makeArrow("\u25BC", 1);
+        barRow->addWidget(m_controlPageLabel);
+        barRow->addWidget(m_controlPageUp);
+        barRow->addWidget(m_controlPageDown);
         m_paramPageLayout->addWidget(pageBar);
         auto* escape = new QShortcut(QKeySequence(Qt::Key_Escape), m_paramPage);
         escape->setContext(Qt::WidgetWithChildrenShortcut);
@@ -6884,9 +6904,56 @@ static void parseNamFileMetadata(const QString& filePath, AudioNode::ModelMetada
     }
 }
 
+// Settings > GUI > Parameter Page > Rows: show one page of rows x columns
+// control buttons at a time. Without a row count the page scrolls instead.
+void MainWindow::applyControlPage() {
+    QSettings settings("RigRoom", "RigRoom");
+    const int columns = std::clamp(settings.value("gui_controls_per_row", 5).toInt(), 1, 12);
+    // Pages only on the full-screen page, which has the arrows; below the
+    // board the parameters scroll as before.
+    const bool fullScreenPage = settings.value("gui_parameter_page", true).toBool();
+    const int rows = fullScreenPage ? std::clamp(settings.value("gui_param_rows", 0).toInt(), 0, 8) : 0;
+    if (m_paramScroll)
+        m_paramScroll->setVerticalScrollBarPolicy(fullScreenPage ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded);
+    m_controlTiles.removeAll(QPointer<QWidget>());
+    const int count = static_cast<int>(m_controlTiles.size());
+    const int perPage = rows > 0 ? columns * rows : 0;
+    const int pages = perPage > 0 ? std::max(1, (count + perPage - 1) / perPage) : 1;
+    m_controlPage = std::clamp(m_controlPage, 0, pages - 1);
+    for (int i = 0; i < count; ++i)
+        m_controlTiles[i]->setVisible(perPage == 0 || i / perPage == m_controlPage);
+    const QScrollBar* bar = m_paramScroll ? m_paramScroll->verticalScrollBar() : nullptr;
+    const bool scrolls = bar && bar->maximum() > 0;
+    if (m_controlPageLabel) {
+        m_controlPageLabel->setText(pages > 1 ? QString("%1 / %2").arg(m_controlPage + 1).arg(pages) : QString());
+    }
+    if (m_controlPageUp) m_controlPageUp->setEnabled(perPage > 0 ? m_controlPage > 0 : (scrolls && bar->value() > 0));
+    if (m_controlPageDown)
+        m_controlPageDown->setEnabled(perPage > 0 ? m_controlPage < pages - 1 : (scrolls && bar->value() < bar->maximum()));
+}
+
+void MainWindow::stepControlPage(int step) {
+    QSettings settings("RigRoom", "RigRoom");
+    const int rows = settings.value("gui_parameter_page", true).toBool()
+                         ? std::clamp(settings.value("gui_param_rows", 0).toInt(), 0, 8) : 0;
+    if (rows > 0) {
+        m_controlPage += step;
+    } else if (m_paramScroll) {
+        // No pages of controls: move the view by one screen.
+        QScrollBar* bar = m_paramScroll->verticalScrollBar();
+        bar->setValue(bar->value() + step * std::max(40, m_paramScroll->viewport()->height() - 40));
+    }
+    applyControlPage();
+}
+
 void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
     // Clear parameters container
     m_parameterControlBindings.clear();
+    m_controlTiles.clear();
+    // A new plugin starts on its first page; the same one keeps its page.
+    const std::string nodeId = node ? node->uniqueId : std::string();
+    if (nodeId != m_controlPageNodeId) m_controlPage = 0;
+    m_controlPageNodeId = nodeId;
     m_parameterControlNode = node;
     clearLayoutContents(m_paramLayout);
     if (m_paramScroll) m_paramScroll->verticalScrollBar()->setValue(0);
@@ -7610,6 +7677,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         
         controlFlow->addWidget(rowWidget);
         controlTiles.push_back(rowWidget);
+        m_controlTiles.push_back(rowWidget);
         ++controlCount;
     }
     if (controlCount == 0) delete controlFlow;
@@ -7619,7 +7687,8 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
     // its height. Done once the page is laid out.
     if (controlCount > 0 && m_paramScroll) {
         QPointer<QScrollArea> scroll(m_paramScroll);
-        QTimer::singleShot(60, this, [scroll, controlTiles]() {
+        QPointer<MainWindow> self(this);
+        QTimer::singleShot(60, this, [scroll, controlTiles, self]() {
             if (!scroll || controlTiles.isEmpty() || !controlTiles.first()) return;
             QSettings settings("RigRoom", "RigRoom");
             const int columns = std::clamp(settings.value("gui_controls_per_row", 5).toInt(), 1, 12);
@@ -7638,7 +7707,10 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
             if (rows > 0)
                 factor = std::min(factor, (height - kSpacing * (rows - 1)) / double(rows * (natural.height() + kSpacing)));
             factor = std::clamp(factor, 0.6, 3.0);
-            if (std::abs(factor - 1.0) < 0.03) return;
+            if (std::abs(factor - 1.0) < 0.03) {
+                QTimer::singleShot(0, self, [self]() { if (self) self->applyControlPage(); });
+                return;
+            }
             std::cerr << "ParameterPage: " << columns << " x " << (rows > 0 ? QString::number(rows).toStdString() : "auto")
                       << " controls, scale " << factor << std::endl;
             for (const auto& tile : controlTiles) {
@@ -7650,8 +7722,10 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
                 tile->setFont(font);
                 scaler->scaleTree(tile);
             }
+            QTimer::singleShot(0, self, [self]() { if (self) self->applyControlPage(); });
         });
     }
+    applyControlPage();
     
     // Add custom file picker buttons dynamically for any file-loading parameters
     if (!fileProps.empty()) {
