@@ -2,6 +2,8 @@
 #include "UiScale.h"
 #include "BrowserStyle.h"
 #include <QScroller>
+#include <QScrollerProperties>
+#include "SectionScale.h"
 #include <QAbstractListModel>
 #include <QApplication>
 #include <QButtonGroup>
@@ -173,6 +175,8 @@ private:
 constexpr int kIndexRole = Qt::UserRole + 1;
 constexpr int kRowHeight = 46;
 constexpr int kIconSize = 36;
+// Picking a plugin on the board (a touchscreen): everything this much larger.
+constexpr double kPickerScale = 1.45;
 } // namespace
 
 // ─── Model ───────────────────────────────────────────────────────────────────
@@ -234,13 +238,19 @@ namespace {
 class PluginRowDelegate : public QStyledItemDelegate {
 public:
     PluginRowDelegate(const std::vector<PluginEntry>& plugins, const QSet<QString>* favorites,
-                      std::function<void(int)> iconReady, std::function<void(int)> starClicked, QObject* parent)
+                      std::function<void(int)> iconReady, std::function<void(int)> starClicked, QObject* parent,
+                      double scale = 1.0)
         : QStyledItemDelegate(parent), m_plugins(plugins), m_favorites(favorites),
-          m_iconReady(std::move(iconReady)), m_starClicked(std::move(starClicked)) {}
+          m_iconReady(std::move(iconReady)), m_starClicked(std::move(starClicked)), m_scale(scale) {}
 
-    QSize sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const override { return {300, kRowHeight}; }
+    // Sizes times the delegate's scale (larger rows for a touchscreen).
+    int px(int value) const { return qMax(1, qRound(value * m_scale)); }
 
-    static QRect starRect(const QRect& row) { return QRect(row.right() - 30, row.center().y() - 11, 22, 22); }
+    QSize sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const override { return {px(300), px(kRowHeight)}; }
+
+    QRect starRect(const QRect& row) const {
+        return QRect(row.right() - px(30), row.center().y() - px(11), px(22), px(22));
+    }
 
     void paint(QPainter* p, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
         const int pluginIndex = index.data(kIndexRole).toInt();
@@ -255,8 +265,9 @@ public:
 
         // The list stays readable at a glance: every row shows its category
         // card (AMP, RVB, ...), never a screenshot. Those live in the info panel.
-        const QRect iconRect(r.left() + 8, r.top() + (r.height() - kIconSize) / 2, kIconSize, kIconSize);
-        const QPixmap icon = PluginArt::generated(e, QSize(kIconSize, kIconSize));
+        const int iconSize = px(kIconSize);
+        const QRect iconRect(r.left() + px(8), r.top() + (r.height() - iconSize) / 2, iconSize, iconSize);
+        const QPixmap icon = PluginArt::generated(e, QSize(iconSize, iconSize));
         QPainterPath clip;
         clip.addRoundedRect(iconRect, 6, 6);
         p->setClipPath(clip);
@@ -270,17 +281,17 @@ public:
         const bool fav = m_favorites && m_favorites->contains(e.uri);
         const QRect star = starRect(r);
         QFont f = option.font;
-        f.setPixelSize(15);
+        f.setPixelSize(px(15));
         p->setFont(f);
         p->setPen(fav ? QColor("#FFD54F") : QColor(hovered || selected ? "#6E6E7A" : "#3A3A42"));
         p->drawText(star, Qt::AlignCenter, fav ? QString::fromUtf8("★") : QString::fromUtf8("☆"));
 
         QFont chipFont = option.font;
-        chipFont.setPixelSize(9);
+        chipFont.setPixelSize(px(9));
         chipFont.setBold(true);
         p->setFont(chipFont);
-        const int chipW = QFontMetrics(chipFont).horizontalAdvance(e.format) + 10;
-        const QRect chip(star.left() - chipW - 6, r.center().y() - 8, chipW, 16);
+        const int chipW = QFontMetrics(chipFont).horizontalAdvance(e.format) + px(10);
+        const QRect chip(star.left() - chipW - px(6), r.center().y() - px(8), chipW, px(16));
         p->setPen(Qt::NoPen);
         p->setBrush(QColor("#2A2A32"));
         p->drawRoundedRect(chip, 4, 4);
@@ -288,22 +299,22 @@ public:
         p->drawText(chip, Qt::AlignCenter, e.format);
 
         // Text.
-        const int textLeft = iconRect.right() + 10;
-        const int textWidth = chip.left() - 8 - textLeft;
+        const int textLeft = iconRect.right() + px(10);
+        const int textWidth = chip.left() - px(8) - textLeft;
         QFont nameFont = option.font;
-        nameFont.setPixelSize(13);
+        nameFont.setPixelSize(px(13));
         nameFont.setBold(true);
         p->setFont(nameFont);
         p->setPen(QColor("#EDEDF2"));
-        p->drawText(QRect(textLeft, r.top() + 5, textWidth, 20), Qt::AlignLeft | Qt::AlignVCenter,
+        p->drawText(QRect(textLeft, r.top() + px(5), textWidth, px(20)), Qt::AlignLeft | Qt::AlignVCenter,
                     QFontMetrics(nameFont).elidedText(e.name, Qt::ElideRight, textWidth));
         QFont subFont = option.font;
-        subFont.setPixelSize(11);
+        subFont.setPixelSize(px(11));
         p->setFont(subFont);
         const QString maker = !e.brand.isEmpty() ? e.brand : e.author;
         const QString sub = maker.isEmpty() ? e.category : maker + QString::fromUtf8("  ·  ") + e.category;
         p->setPen(QColor("#8A8A96"));
-        p->drawText(QRect(textLeft, r.top() + 24, textWidth, 16), Qt::AlignLeft | Qt::AlignVCenter,
+        p->drawText(QRect(textLeft, r.top() + px(24), textWidth, px(16)), Qt::AlignLeft | Qt::AlignVCenter,
                     QFontMetrics(subFont).elidedText(sub, Qt::ElideRight, textWidth));
         p->restore();
     }
@@ -325,6 +336,7 @@ private:
     const QSet<QString>* m_favorites;
     std::function<void(int)> m_iconReady;
     std::function<void(int)> m_starClicked;
+    double m_scale = 1.0;
 };
 } // namespace
 
@@ -423,13 +435,29 @@ PluginBrowserDialog::PluginBrowserDialog(const std::vector<PluginEntry>& plugins
         m_list->setDragDropMode(QAbstractItemView::DragOnly);
         m_list->setDefaultDropAction(Qt::CopyAction);
     } else {
-        // Picking from a touchscreen: slide the list with a finger.
+        // Picking from a touchscreen: slide the list with a finger. Starts
+        // after a short slide, follows the finger 1:1 and glides on without
+        // bouncing; no hover repaints while sliding.
+        m_list->setMouseTracking(false);
+        m_list->setAutoScroll(false);
         QScroller::grabGesture(m_list->viewport(), QScroller::LeftMouseButtonGesture);
+        QScroller* scroller = QScroller::scroller(m_list->viewport());
+        QScrollerProperties properties = scroller->scrollerProperties();
+        properties.setScrollMetric(QScrollerProperties::DragStartDistance, 0.002);
+        properties.setScrollMetric(QScrollerProperties::DragVelocitySmoothingFactor, 0.6);
+        properties.setScrollMetric(QScrollerProperties::MousePressEventDelay, 0.12);
+        properties.setScrollMetric(QScrollerProperties::DecelerationFactor, 0.2);
+        properties.setScrollMetric(QScrollerProperties::MaximumVelocity, 1.5);
+        properties.setScrollMetric(QScrollerProperties::AxisLockThreshold, 0.5);
+        properties.setScrollMetric(QScrollerProperties::FrameRate, QScrollerProperties::Fps60);
+        properties.setScrollMetric(QScrollerProperties::HorizontalOvershootPolicy, QScrollerProperties::OvershootAlwaysOff);
+        properties.setScrollMetric(QScrollerProperties::VerticalOvershootPolicy, QScrollerProperties::OvershootAlwaysOff);
+        scroller->setScrollerProperties(properties);
     }
     m_list->setItemDelegate(new PluginRowDelegate(
         m_plugins, m_favorites,
         [this](int pluginIndex) { m_model->pluginChanged(pluginIndex); if (pluginIndex == m_detailsIndex) showDetails(pluginIndex); },
-        [this](int pluginIndex) { toggleFavorite(pluginIndex); }, m_list));
+        [this](int pluginIndex) { toggleFavorite(pluginIndex); }, m_list, library ? 1.0 : kPickerScale));
     center->addWidget(m_list, 1);
     auto* hint = new QLabel(library
         ? "Drag a plugin onto the signal chain (between blocks or onto a free slot) · double-click or Enter adds it at the end · ☆ favourite"
@@ -543,6 +571,21 @@ PluginBrowserDialog::PluginBrowserDialog(const std::vector<PluginEntry>& plugins
     m_sidebar->setCurrentRow(0); // All plugins
     refresh();
     m_search->setFocus();
+
+    if (!library) {
+        // A touchscreen: the categories slide with a finger too, and all
+        // text and controls are larger.
+        m_sidebar->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+        QScroller::grabGesture(m_sidebar->viewport(), QScroller::LeftMouseButtonGesture);
+        QScroller::scroller(m_sidebar->viewport())
+            ->setScrollerProperties(QScroller::scroller(m_list->viewport())->scrollerProperties());
+        auto* scaler = new SectionScale::Scaler(kPickerScale, this);
+        scaler->scaleTree(this);
+        QFont larger = font();
+        if (larger.pointSizeF() > 0) larger.setPointSizeF(larger.pointSizeF() * kPickerScale);
+        else if (larger.pixelSize() > 0) larger.setPixelSize(qRound(larger.pixelSize() * kPickerScale));
+        setFont(larger);
+    }
 }
 
 void PluginBrowserDialog::rebuildSidebar() {

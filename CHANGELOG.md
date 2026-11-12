@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Tapping a parameter value always opens the number pad, also when the keyboard for text fields is turned off; the small window with arrow buttons is gone for good.
+- The plugin list opened from the board is larger (text, rows, buttons) and slides more smoothly with a finger, the categories too.
 - LV2 GUIs that need direct access to the plugin (instance-access/data-access, e.g. DuskVerb and other JUCE-style GUIs) now open inside RigRoom instead of the helper process, where they failed with "Data or instance access missing". X11 GUIs opened inside RigRoom are embedded directly and also get these features.
 - Fixed plugin GUIs in the helper failing to appear (BadWindow errors): the plugin's area now exists on the X server before the plugin creates its window in it.
 - An X error about a plugin window that just went away (BadWindow) no longer ends RigRoom or the plugin GUI; it is logged and ignored.

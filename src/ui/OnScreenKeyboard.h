@@ -89,16 +89,11 @@ public:
 
     // Ask for a number: the keyboard opens with its own entry line showing
     // `value` (selected, so typing replaces it); Enter calls `done` with the
-    // number (kept within minimum..maximum), BACK cancels. Without the
-    // on-screen keyboard this is the usual input dialog.
+    // number (kept within minimum..maximum), BACK cancels.
     static void askValue(QWidget* near, const QString& title, double value, double minimum, double maximum,
                          int decimals, std::function<void(double)> done) {
-        if (!enabled()) {
-            bool accepted = false;
-            const double result = QInputDialog::getDouble(near, title, "Value:", value, minimum, maximum, decimals, &accepted);
-            if (accepted && done) done(result);
-            return;
-        }
+        // Always the number pad, also with the keyboard for text fields
+        // turned off: the small window with arrow buttons is not used.
         instance()->openValue(near, title, value, minimum, maximum, decimals, std::move(done));
     }
 
