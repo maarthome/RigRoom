@@ -37,6 +37,10 @@ public:
     static constexpr const char* kPluginMimeType = "application/x-rigroom-plugin-uri";
 
     QString selectedUri() const { return m_selectedUri; }
+    // Result of exec() when SPLIT HERE was pressed instead of a plugin chosen.
+    static constexpr int SplitResult = 2;
+    // Show a SPLIT HERE button (the list was opened from a gap on the board).
+    void offerSplit(bool offer);
 
 signals:
     void pluginChosen(const QString& uri);
@@ -67,6 +71,7 @@ private:
 
     PluginListModel* m_model = nullptr;
     QLineEdit* m_search = nullptr;
+    class QPushButton* m_splitButton = nullptr;
     QListWidget* m_sidebar = nullptr;
     QListView* m_list = nullptr;
     QButtonGroup* m_formatGroup = nullptr;

@@ -283,7 +283,7 @@ struct Helper {
             auto packStart = reinterpret_cast<GtkBoxPackStart>(gtk.resolve("gtk_box_pack_start"));
             if (vboxNew && buttonNew && packStart) {
                 void* box = vboxNew(0, 0);
-                void* closeButton = buttonNew("Close");
+                void* closeButton = buttonNew("\u25C0  BACK");
                 connectSignal(closeButton, "clicked", reinterpret_cast<void (*)()>(&Helper::closeClicked),
                               this, nullptr, 0);
                 packStart(box, closeButton, 0, 1, 0);
@@ -491,22 +491,26 @@ struct X11Helper {
     void drawBar() {
         if (!gc) return;
         barButtons.clear();
-        XSetForeground(display, gc, 0x1E1E22);
+        XSetForeground(display, gc, 0x2A2A30);
         XFillRectangle(display, window, gc, 0, 0, viewWidth, kBarHeight);
-        int x = viewWidth - kCloseWidth - 4;
-        drawButton(x, kCloseWidth, "CLOSE X", 0x8A3A42);
-        barButtons.push_back({x, kCloseWidth, 'c'});
+        XSetForeground(display, gc, 0x00B0FF);
+        XFillRectangle(display, window, gc, 0, kBarHeight - 2, viewWidth, 2);
+        // BACK at the top left, like RigRoom's own pages.
+        drawButton(4, kCloseWidth, "< BACK", 0x00897B);
+        barButtons.push_back({4, kCloseWidth, 'c'});
+        int right = viewWidth;
         if (pannable()) {
             const struct { const char* label; char action; } arrows[] = {{">", 'r'}, {"v", 'd'}, {"^", 'u'}, {"<", 'l'}};
             for (const auto& arrow : arrows) {
-                x -= kArrowWidth + 4;
-                drawButton(x, kArrowWidth, arrow.label, 0x3A3A44);
-                barButtons.push_back({x, kArrowWidth, arrow.action});
+                right -= kArrowWidth + 4;
+                drawButton(right, kArrowWidth, arrow.label, 0x3A3A44);
+                barButtons.push_back({right, kArrowWidth, arrow.action});
             }
         }
         XSetForeground(display, gc, 0xE0E0E0);
-        const int titleRoom = qMax(0, (x - 16) / 7);
-        XDrawString(display, window, gc, 10, kBarHeight / 2 + 4, barTitle.constData(),
+        const int titleX = 4 + kCloseWidth + 14;
+        const int titleRoom = qMax(0, (right - titleX - 8) / 7);
+        XDrawString(display, window, gc, titleX, kBarHeight / 2 + 4, barTitle.constData(),
                     qMin(static_cast<int>(barTitle.size()), titleRoom));
     }
 

@@ -1082,7 +1082,7 @@ void NodeCanvas::updateLayout() {
     if (m_bandColumns > 0 || fillRows) {
         // Each row is only as tall as its lanes need, with a narrow gap for the
         // wire to the next row; the rows stack.
-        H = CanvasMetrics::cardHeight + activeLaneSteps() * CanvasMetrics::minimumLaneHeight + 30.0;
+        H = CanvasMetrics::cardHeight + activeLaneSteps() * CanvasMetrics::minimumLaneHeight + 18.0;
     }
     if (fillRows && isVisible() && viewport()->width() > 200 && viewport()->height() > 100) {
         // A chosen number of blocks per row: the blocks are as large as the
@@ -1097,9 +1097,7 @@ void NodeCanvas::updateLayout() {
             lineW = right + 16.0 + MARGIN_X / 2.0 + 8.0;
         }
         const qreal boardH = H * m_bandCount + 8.0;
-        const int controls = (m_zoomOverlay && m_zoomOverlay->isVisible())
-            ? m_zoomOverlay->height() + 24
-            : qRound(CanvasMetrics::splitToolHeight * 1.4 * (m_zoomOverlay ? SectionScale::factorOf(m_zoomOverlay) : 1.0)) + 28;
+        const int controls = (m_zoomOverlay && m_zoomOverlay->isVisible()) ? m_zoomOverlay->height() + 24 : 8;
         const double fitW = viewport()->width() / lineW;
         const double fitH = std::max(1, viewport()->height() - controls) / boardH;
         const double target = std::clamp(std::min(fitW, fitH), 0.5, 3.0);
@@ -1146,17 +1144,12 @@ void NodeCanvas::updateLayout() {
     layoutRow(0, rowCenters[0], trackLeft, trackRight, trackW, sysRightX, sysLeftX, rowCenters[m_rows[0].parentRow]);
     layoutRow(4, rowCenters[4], trackLeft, trackRight, trackW, sysRightX, sysLeftX, rowCenters[m_rows[4].parentRow]);
 
-    auto* splitTool = new SplitToolItem(this);
-    m_scene->addItem(splitTool);
-    m_dynamicItems.push_back(splitTool);
-    if (m_snake) {
-        // Kept at the left of the bottom row of controls, at a fixed size on
-        // screen, whatever the zoom or scroll position.
-        splitTool->setFlag(QGraphicsItem::ItemIgnoresTransformations);
-        splitTool->setZValue(50);
-        m_splitTool = splitTool;
-        positionSplitTool();
-    } else {
+    // In the wrapped layout splits are made from the plugin list (tap a gap,
+    // then SPLIT HERE), which leaves the board's room to the blocks.
+    if (!m_snake) {
+        auto* splitTool = new SplitToolItem(this);
+        m_scene->addItem(splitTool);
+        m_dynamicItems.push_back(splitTool);
         splitTool->setPos(MARGIN_X,
                           sysCY - CanvasMetrics::cardHeight / 2.0
                               - CanvasMetrics::splitToolHeight - 6.0);

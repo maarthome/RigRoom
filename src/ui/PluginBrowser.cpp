@@ -1,6 +1,7 @@
 #include "PluginBrowser.h"
 #include "UiScale.h"
 #include "BrowserStyle.h"
+#include <QScroller>
 #include <QAbstractListModel>
 #include <QApplication>
 #include <QButtonGroup>
@@ -353,6 +354,32 @@ PluginBrowserDialog::PluginBrowserDialog(const std::vector<PluginEntry>& plugins
     // Center: search, chips, list
     auto* center = new QVBoxLayout();
     center->setSpacing(8);
+    if (!library) {
+        // Touchscreen: a way back without choosing, and (from a gap on the
+        // board) splitting the chain there instead of adding a plugin.
+        auto* topRow = new QHBoxLayout();
+        topRow->setSpacing(10);
+        auto* back = new QPushButton(QString::fromUtf8("\u25C0  BACK"), this);
+        back->setStyleSheet(UiScale::css(
+            "QPushButton { background: #00897B; color: white; border: none; border-radius: 6px;"
+            " padding: 8px 20px; font-weight: bold; font-size: 15px; }"
+            "QPushButton:pressed { background: #00695C; }"));
+        back->setFocusPolicy(Qt::NoFocus);
+        connect(back, &QPushButton::clicked, this, &QDialog::reject);
+        topRow->addWidget(back);
+        m_splitButton = new QPushButton(QString::fromUtf8("SPLIT HERE"), this);
+        m_splitButton->setToolTip("Split the signal chain at this gap into parallel paths");
+        m_splitButton->setStyleSheet(UiScale::css(
+            "QPushButton { background: #2E3A4A; color: #E6F2FF; border: 1px solid #00B0FF; border-radius: 6px;"
+            " padding: 8px 20px; font-weight: bold; font-size: 15px; }"
+            "QPushButton:pressed { background: #00B0FF; color: #07121A; }"));
+        m_splitButton->setFocusPolicy(Qt::NoFocus);
+        m_splitButton->hide();
+        connect(m_splitButton, &QPushButton::clicked, this, [this]() { done(SplitResult); });
+        topRow->addWidget(m_splitButton);
+        topRow->addStretch();
+        center->addLayout(topRow);
+    }
     m_search = new QLineEdit(this);
     m_search->setPlaceholderText("Search plugins by name, maker, type or tag…");
     m_search->setClearButtonEnabled(true);
@@ -391,9 +418,14 @@ PluginBrowserDialog::PluginBrowserDialog(const std::vector<PluginEntry>& plugins
     m_list->setMouseTracking(true);
     m_list->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     // Rows can be dragged onto the signal chain.
-    m_list->setDragEnabled(true);
-    m_list->setDragDropMode(QAbstractItemView::DragOnly);
-    m_list->setDefaultDropAction(Qt::CopyAction);
+    if (library) {
+        m_list->setDragEnabled(true);
+        m_list->setDragDropMode(QAbstractItemView::DragOnly);
+        m_list->setDefaultDropAction(Qt::CopyAction);
+    } else {
+        // Picking from a touchscreen: slide the list with a finger.
+        QScroller::grabGesture(m_list->viewport(), QScroller::LeftMouseButtonGesture);
+    }
     m_list->setItemDelegate(new PluginRowDelegate(
         m_plugins, m_favorites,
         [this](int pluginIndex) { m_model->pluginChanged(pluginIndex); if (pluginIndex == m_detailsIndex) showDetails(pluginIndex); },
@@ -556,6 +588,10 @@ void PluginBrowserDialog::refresh() {
         m_list->scrollTo(m_model->index(keepRow));
     }
     showDetails(currentPluginIndex());
+}
+
+void PluginBrowserDialog::offerSplit(bool offer) {
+    if (m_splitButton) m_splitButton->setVisible(offer);
 }
 
 int PluginBrowserDialog::currentPluginIndex() const {

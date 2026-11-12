@@ -85,19 +85,20 @@ inline void addPluginBar(QWidget* window, QVBoxLayout* layout, const QString& ti
     // Large enough to hit with a finger on a small touchscreen.
     bar->setStyleSheet("QWidget#pluginBar { background: #2A2A30; border-bottom: 2px solid #00B0FF; }"
                        "QLabel { color: #F0F0F0; font-weight: bold; font-size: 16px; background: transparent; }"
-                       "QPushButton { background: #C62828; color: #FFFFFF; border: none;"
+                       "QPushButton { background: #00897B; color: #FFFFFF; border: none;"
                        " border-radius: 6px; padding: 4px 22px; font-weight: bold; font-size: 18px; }"
-                       "QPushButton:pressed { background: #8E0000; }");
+                       "QPushButton:pressed { background: #00695C; }");
     auto* row = new QHBoxLayout(bar);
-    row->setContentsMargins(10, 3, 4, 3);
+    row->setContentsMargins(4, 3, 10, 3);
+    // BACK first, at the top left, like the parameter page.
+    auto* back = new QPushButton(QString::fromUtf8("\u25C0  BACK"), bar);
+    back->setFocusPolicy(Qt::NoFocus);
+    back->setMinimumHeight(kPluginBarHeight - 10);
+    back->setMinimumWidth(140);
+    QObject::connect(back, &QPushButton::clicked, window, &QWidget::close);
+    row->addWidget(back);
     auto* label = new QLabel(title, bar);
     row->addWidget(label, 1);
-    auto* close = new QPushButton(QString::fromUtf8("CLOSE \u2715"), bar);
-    close->setFocusPolicy(Qt::NoFocus);
-    close->setMinimumHeight(kPluginBarHeight - 10);
-    close->setMinimumWidth(140);
-    QObject::connect(close, &QPushButton::clicked, window, &QWidget::close);
-    row->addWidget(close);
     layout->insertWidget(0, bar);
 }
 

@@ -21,6 +21,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QtGlobal>
+#include <QTextCursor>
+#include <cstdio>
 
 // A touch keyboard for screens without a physical one. It appears at the
 // bottom of the screen when a text or number field gets focus; if it would
@@ -91,7 +93,10 @@ public:
         if (!screen) return;
         const QRect area = screen->availableGeometry();
         const int height = qMax(180, area.height() * 40 / 100);
-        setGeometry(area.left(), area.bottom() + 1 - height, area.width(), height);
+        // Fixed: as the child of a dialog the keys would otherwise take on its
+        // button style and grow the keyboard past the bottom of the screen.
+        setFixedSize(area.width(), height);
+        move(area.left(), area.bottom() + 1 - height);
         show();
         raise();
         // Give the field's window the keyboard focus explicitly. Without a
@@ -122,7 +127,7 @@ private:
         setStyleSheet(
             "QWidget#onScreenKeyboard { background: #1B1C20; border-top: 2px solid #00B0FF; }"
             "QPushButton { background: #2E3038; color: #F0F0F3; border: 1px solid #3E414B; border-radius: 6px;"
-            " font-size: 20px; font-weight: bold; }"
+            " font-size: 20px; font-weight: bold; padding: 0px; margin: 0px; min-width: 0px; min-height: 0px; }"
             "QPushButton:pressed { background: #00B0FF; color: #07121A; }"
             "QPushButton[special=\"true\"] { background: #3A3D47; font-size: 16px; }"
             "QPushButton[active=\"true\"] { background: #0B4F6C; }");
@@ -172,6 +177,7 @@ private:
         button->setFocusPolicy(Qt::NoFocus);
         button->setAutoRepeat(false);
         button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        button->setMinimumSize(1, 1);
         return button;
     }
 
@@ -224,6 +230,33 @@ private:
             if (!window->isActiveWindow()) window->activateWindow();
         }
         if (!target->hasFocus()) target->setFocus(Qt::OtherFocusReason);
+        std::fprintf(stderr, "OnScreenKeyboard: key '%s' -> %s\n", qPrintable(text), target->metaObject()->className());
+
+        // Edit the text directly; synthetic key presses are not taken by every
+        // field. A spin box or editable combo box is edited through its text
+        // part, and reads the number as it changes.
+        QLineEdit* edit = qobject_cast<QLineEdit*>(target);
+        if (!edit && (qobject_cast<QAbstractSpinBox*>(target) || qobject_cast<QComboBox*>(target)))
+            edit = target->findChild<QLineEdit*>();
+        if (edit && key != Qt::Key_Return) {
+            if (key == Qt::Key_Backspace) edit->backspace();
+            else if (key == Qt::Key_Left) edit->cursorBackward(false);
+            else if (key == Qt::Key_Right) edit->cursorForward(false);
+            else edit->insert(text);
+            return;
+        }
+        if (auto* textEdit = qobject_cast<QTextEdit*>(target); textEdit && key != Qt::Key_Return) {
+            if (key == Qt::Key_Backspace) textEdit->textCursor().deletePreviousChar();
+            else if (!text.isEmpty()) textEdit->insertPlainText(text);
+            return;
+        }
+        if (auto* plain = qobject_cast<QPlainTextEdit*>(target); plain && key != Qt::Key_Return) {
+            if (key == Qt::Key_Backspace) plain->textCursor().deletePreviousChar();
+            else if (!text.isEmpty()) plain->insertPlainText(text);
+            return;
+        }
+        // Enter (finishes a value, presses a dialog's default button), and
+        // anything else, as a key press.
         QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier, text);
         QCoreApplication::sendEvent(target, &press);
         QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier, text);
@@ -269,21 +302,15 @@ public:
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override {
         const QEvent::Type type = event->type();
-        if (type != QEvent::FocusIn && type != QEvent::FocusOut && type != QEvent::MouseButtonRelease) return false;
+        if (type != QEvent::FocusOut && type != QEvent::MouseButtonRelease) return false;
         if (!watched->isWidgetType()) return false;
         auto* widget = static_cast<QWidget*>(watched);
         OnScreenKeyboard* keyboard = OnScreenKeyboard::instance();
         if (widget == keyboard || keyboard->isAncestorOf(widget)) return false;
 
-        if (event->type() == QEvent::FocusIn) {
-            if (OnScreenKeyboard::opensOnFocus(widget) && OnScreenKeyboard::enabled()) {
-                QPointer<QWidget> field = widget;
-                // After the tap that gave focus has finished.
-                QTimer::singleShot(0, [field]() {
-                    if (field && field->hasFocus()) OnScreenKeyboard::instance()->showFor(field);
-                });
-            }
-        } else if (event->type() == QEvent::MouseButtonRelease) {
+        // Opens only when a field is tapped, not when a window puts the cursor
+        // in a field by itself (e.g. the plugin list's search box).
+        if (event->type() == QEvent::MouseButtonRelease) {
             // Tapping the text of a field (also of a spin box or editable combo,
             // and again after the keyboard was hidden) opens the keyboard.
             QWidget* field = OnScreenKeyboard::fieldFor(widget);

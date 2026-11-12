@@ -28,6 +28,9 @@
 - The preset name moved to the middle of the status line; the SPLIT tool sits at the left of the board's bottom row of controls.
 - In the wrapped layout the board has exactly as many columns as are in use (one is added when inserting), so System Output follows the last block at the normal spacing; the zoom and column controls are hidden there.
 - A long press on a block opens its menu, like a right-click.
+- The plugin list opened from a gap on the board has BACK and SPLIT HERE buttons, scrolls with a finger and has a wider scroll bar. In the wrapped layout the SPLIT tool is no longer on the board, giving the blocks more room.
+- Plugin windows have BACK at the top left (was Close at the right).
+- On-screen keyboard: types directly into the field (values were not taken), keeps its size inside dialogs, and opens only when a field is tapped.
 - Settings > GUI: Control Buttons per Row is a list near the top; Control Button Size sets the size of a plugin's control buttons.
 - The Settings window is 1.5 times larger by default (Settings > GUI > Settings Window).
 - An on-screen keyboard appears when a text or number field is tapped; the field's window moves up so the keyboard does not cover it (Settings > GUI > On-screen Keyboard).

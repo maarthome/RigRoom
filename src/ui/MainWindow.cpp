@@ -2614,7 +2614,21 @@ void MainWindow::togglePluginLibrary() {
 
 void MainWindow::onPlusButtonClicked(int row, int col, QPoint screenPos, int insert) {
     Q_UNUSED(screenPos);
-    const QString uri = choosePlugin();
+    PluginBrowserDialog browser(buildPluginEntries(), &m_favoritePluginUris, &m_recentPluginUris,
+                                [this] { saveFavoritePlugins(); }, this);
+    // Opened from a gap: the chain can also be split there.
+    browser.offerSplit(true);
+    const int result = browser.exec();
+    if (result == PluginBrowserDialog::SplitResult) {
+        // The gap tapped: an insert marker sits on gap `col`, an empty slot
+        // in column `col` (the gap before it).
+        if (!m_canvas->createSplitAtPathGap(row, col)) {
+            QMessageBox::information(this, "Split", "The chain cannot be split at this place.");
+        }
+        return;
+    }
+    if (result != QDialog::Accepted) return;
+    const QString uri = browser.selectedUri();
     if (uri.isEmpty()) return;
     addPluginAt(uri, row, col, insert);
 }
