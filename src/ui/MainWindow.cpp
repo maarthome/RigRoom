@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "UiScale.h"
 #include "ScreenFit.h"
+#include "ScreenZoom.h"
 #include "PluginLoadingOverlay.h"
 #include "CredentialStore.h"
 #include "../audio/LV2Host.h"
@@ -5361,6 +5362,23 @@ private:
     WId m_parentWindow = 0;
 };
 
+// Zoom the whole screen so a plugin window fills it, then centre the window.
+// Done by the X server, so it works for every plugin GUI. Each call is matched
+// by ScreenZoom::leave() when the window closes.
+static void zoomPluginWindowToScreen(QWidget* window, const QSize& fullLogicalSize) {
+    const qreal ratio = window->devicePixelRatioF() > 0.0 ? window->devicePixelRatioF() : 1.0;
+    const QSize contentPx(qRound(fullLogicalSize.width() * ratio), qRound(fullLogicalSize.height() * ratio));
+    const QSize screenPx = ScreenZoom::enter(contentPx);
+    std::cerr << "PluginWindow: zoom to fill the screen with " << contentPx.width() << "x" << contentPx.height()
+              << (screenPx.isValid() ? QString(" -> screen %1x%2").arg(screenPx.width()).arg(screenPx.height()).toStdString()
+                                     : std::string(" failed (is xrandr installed?)"))
+              << std::endl;
+    if (!screenPx.isValid() || fullLogicalSize.isEmpty()) return;
+    window->resize(fullLogicalSize);
+    window->move(qRound(qMax(0, (screenPx.width() - contentPx.width()) / 2) / ratio),
+                 qRound(qMax(0, (screenPx.height() - contentPx.height()) / 2) / ratio));
+}
+
 class VST3PluginUIWindow : public QDialog {
 public:
     VST3PluginUIWindow(VST3PluginNode* node, QWidget* parent = nullptr)
@@ -5443,6 +5461,7 @@ public:
         int logicalW = std::round(m_nativeWidth / ratio);
         int logicalH = std::round(m_nativeHeight / ratio);
         
+        m_fullSize = QSize(logicalW, logicalH + barHeight);
         if (m_scrolls) {
             resize(ScreenFit::bounded(QSize(logicalW, logicalH + barHeight), this));
         } else if (m_resizable) {
@@ -5509,6 +5528,7 @@ public:
 
     ~VST3PluginUIWindow() override {
         std::cout << "VST3Host: ~VST3PluginUIWindow() destructor called!" << std::endl;
+        if (m_zoomed) ScreenZoom::leave();
         if (m_plugView) {
             if (m_attached) {
                 m_plugView->removed();
@@ -5572,6 +5592,11 @@ protected:
                     m_plugView->onSize(&rect);
                 }
             }
+        }
+        // Fill the screen with the plugin.
+        if (!m_zoomed) {
+            m_zoomed = true;
+            QTimer::singleShot(0, this, [this]() { zoomPluginWindowToScreen(this, m_fullSize); });
         }
     }
     
@@ -5641,6 +5666,8 @@ private:
     bool m_attached;
     bool m_resizable;
     bool m_scrolls = false;
+    bool m_zoomed = false;
+    QSize m_fullSize;
     int m_nativeWidth;
     int m_nativeHeight;
     Window m_x11Container;
@@ -5753,6 +5780,7 @@ public:
         int logicalW = std::round(m_nativeWidth / ratio);
         int logicalH = std::round(m_nativeHeight / ratio);
         
+        m_fullSize = QSize(logicalW, logicalH + barHeight);
         resize(ScreenFit::bounded(QSize(logicalW, logicalH + barHeight), this));
 
         // The plugin gets an area of its own below the plugin bar: a widget
@@ -5808,6 +5836,7 @@ public:
                 setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
                 setMinimumSize(ScreenFit::bounded(QSize(300, 200), this));
                 if (m_scrolls) m_containerWidget->setFixedSize(logicalW, logicalH);
+                m_fullSize = QSize(logicalW, logicalH + ScreenFit::kPluginBarHeight);
                 resize(ScreenFit::bounded(QSize(logicalW, logicalH + ScreenFit::kPluginBarHeight), this));
                 updateChildWindows(m_nativeWidth, m_nativeHeight);
             }, Qt::QueuedConnection);
@@ -5816,6 +5845,7 @@ public:
 
     ~CLAPPluginUIWindow() override {
         m_node->setResizeCallback(nullptr);
+        if (m_zoomed) ScreenZoom::leave();
         const clap_plugin_t* plugin = m_node->getClapPlugin();
         const clap_plugin_gui_t* extGui = m_node->getClapGuiExtension();
         if (extGui && plugin && m_attached) {
@@ -5875,6 +5905,11 @@ protected:
                 }
             }
         }
+        // Fill the screen with the plugin.
+        if (m_attached && !m_zoomed) {
+            m_zoomed = true;
+            QTimer::singleShot(0, this, [this]() { zoomPluginWindowToScreen(this, m_fullSize); });
+        }
     }
 
     void resizeEvent(QResizeEvent* event) override {
@@ -5909,6 +5944,8 @@ private:
     bool m_ownsDisplay = false;
     bool m_attached = false;
     bool m_scrolls = false;
+    bool m_zoomed = false;
+    QSize m_fullSize;
     uint32_t m_nativeWidth = 800;
     uint32_t m_nativeHeight = 600;
 };
@@ -6077,6 +6114,7 @@ public:
                 const QRect area = ScreenFit::availableArea(this);
                 m_scrolls = !supportsResize && area.isValid() &&
                             (nativeSize.width() > area.width() || nativeSize.height() + barHeight > area.height());
+                m_fullSize = nativeSize + QSize(0, barHeight);
                 if (m_scrolls) {
                     layout->addWidget(ScreenFit::scrollable(widget, this));
                 } else {
@@ -6137,6 +6175,7 @@ public:
     }
     
     ~PluginUIWindow() override {
+        if (m_zoomed) ScreenZoom::leave();
         if (m_idleTimer) m_idleTimer->stop();
         if (m_portSyncTimer) m_portSyncTimer->stop();
         if (m_suilInstance) {
@@ -6167,6 +6206,15 @@ public:
     }
 
 protected:
+    void showEvent(QShowEvent* event) override {
+        QDialog::showEvent(event);
+        // Fill the screen with the plugin (after the size is settled).
+        if (m_uiWidget && !m_fullSize.isEmpty() && !m_zoomed) {
+            m_zoomed = true;
+            QTimer::singleShot(50, this, [this]() { zoomPluginWindowToScreen(this, m_fullSize); });
+        }
+    }
+
     void resizeEvent(QResizeEvent* event) override {
         QDialog::resizeEvent(event);
         // When scrolling, the window is a viewport onto the UI, which keeps
@@ -6205,6 +6253,8 @@ private:
 
     LV2PluginNode* m_node;
     bool m_scrolls = false;
+    bool m_zoomed = false;
+    QSize m_fullSize;
     SuilHost* m_suilHost = nullptr;
     SuilInstance* m_suilInstance = nullptr;
     LV2_URID_Map m_uridMap{};
