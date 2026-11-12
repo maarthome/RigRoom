@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Tapping a parameter value opens the on-screen keyboard straight away, with the value in a large entry line at its top; type the new value and press Enter. The small window with arrows is gone.
+- Plugin GUIs fill the whole screen in black, with the plugin centred and its name in large letters in the bar.
 - Click an empty preset slot to start a new preset there; Save keeps it without asking for a name. Right-click an empty slot to copy the current preset into it. The separate New Preset item is gone; Ctrl+N starts a new preset in the first free slot of the bank.
 - Preset names no longer have to be unique (the slot, e.g. 05B, tells them apart) and can use any characters, such as ä and ö.
 - Save As is now Save Copy To (Ctrl+Shift+S): it puts the current board, edits included, into a free slot and leaves the original as it was saved. Duplicate and the new Move pick their target in the bank grid.

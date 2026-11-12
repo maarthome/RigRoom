@@ -1,8 +1,10 @@
 #include "MainWindow.h"
+#include <QPointer>
 #include "UiScale.h"
 #include "ScreenFit.h"
 #include "ScreenZoom.h"
 #include "SectionScale.h"
+#include "OnScreenKeyboard.h"
 #include "PluginLoadingOverlay.h"
 #include "CredentialStore.h"
 #include "../audio/LV2Host.h"
@@ -2876,17 +2878,18 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
                     break;
                 }
             }
-            bool accepted = false;
             const bool integerValue = watched->property("parameterInteger").toBool();
-            const double value = QInputDialog::getDouble(
-                this, "Set Parameter", "Value:", currentValue, minimum, maximum,
-                integerValue ? 0 : 4, &accepted);
-            if (accepted) {
-                m_parameterControlNode->setParameter(
-                    index, integerValue ? static_cast<float>(qRound(value)) : static_cast<float>(value));
-                syncParameterControls();
-                setUnsavedChanges(true);
-            }
+            QString title = watched->property("parameterName").toString();
+            if (title.isEmpty()) title = "Set Parameter";
+            std::shared_ptr<AudioNode> node = m_parameterControlNode;
+            QPointer<MainWindow> self(this);
+            OnScreenKeyboard::askValue(qobject_cast<QWidget*>(watched), title, currentValue, minimum, maximum,
+                                       integerValue ? 0 : 4, [self, node, index, integerValue](double value) {
+                if (!self || !node) return;
+                node->setParameter(index, integerValue ? static_cast<float>(qRound(value)) : static_cast<float>(value));
+                if (self->m_parameterControlNode == node) self->syncParameterControls();
+                self->setUnsavedChanges(true);
+            });
             return true;
         }
         const QVariant index = watched->property("parameterIndex");
@@ -5684,9 +5687,28 @@ static void zoomPluginWindowToScreen(QWidget* window, const QSize& fullLogicalSi
                                      : std::string(" failed (is xrandr installed?)"))
               << std::endl;
     if (!screenPx.isValid() || fullLogicalSize.isEmpty()) return;
-    window->resize(fullLogicalSize);
-    window->move(qRound(qMax(0, (screenPx.width() - contentPx.width()) / 2) / ratio),
-                 qRound(qMax(0, (screenPx.height() - contentPx.height()) / 2) / ratio));
+    // The window covers the whole screen in black, the bar across the top
+    // and the plugin centred below it at its own size.
+    const QSize screenLogical(qMax(1, qRound(screenPx.width() / ratio)), qMax(1, qRound(screenPx.height() / ratio)));
+    window->setProperty("pluginFullScreen", true);
+    QPalette palette = window->palette();
+    palette.setColor(QPalette::Window, Qt::black);
+    window->setPalette(palette);
+    window->setAutoFillBackground(true);
+    if (auto* layout = qobject_cast<QBoxLayout*>(window->layout())) {
+        const QSize content = QSize(fullLogicalSize.width(), qMax(1, fullLogicalSize.height() - ScreenFit::kPluginBarHeight))
+                                  .boundedTo(QSize(screenLogical.width(), qMax(1, screenLogical.height() - ScreenFit::kPluginBarHeight)));
+        for (int i = 0; i < layout->count(); ++i) {
+            QWidget* widget = layout->itemAt(i)->widget();
+            if (!widget || widget->objectName() == "pluginBar") continue;
+            widget->setFixedSize(content);
+            layout->setAlignment(widget, Qt::AlignCenter);
+        }
+    }
+    window->setMinimumSize(0, 0);
+    window->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+    window->resize(screenLogical);
+    window->move(0, 0);
 }
 
 class VST3PluginUIWindow : public QDialog {
@@ -5861,6 +5883,8 @@ public:
 protected:
     void resizeEvent(QResizeEvent* event) override {
         QDialog::resizeEvent(event);
+        // Full screen: the plugin keeps its own size, centred in the window.
+        if (property("pluginFullScreen").toBool()) return;
         // When scrolling, the window is a viewport onto the plugin, which
         // keeps its own size.
         if (m_plugView && m_attached && !m_scrolls) {
@@ -6224,6 +6248,8 @@ protected:
 
     void resizeEvent(QResizeEvent* event) override {
         QDialog::resizeEvent(event);
+        // Full screen: the plugin keeps its own size, centred in the window.
+        if (property("pluginFullScreen").toBool()) return;
         // When scrolling, the window is a viewport onto the plugin, which
         // keeps its own size.
         if (m_containerWidget && m_dpy && m_x11Container && !m_scrolls) {
@@ -6527,6 +6553,8 @@ protected:
 
     void resizeEvent(QResizeEvent* event) override {
         QDialog::resizeEvent(event);
+        // Full screen: the plugin keeps its own size, centred in the window.
+        if (property("pluginFullScreen").toBool()) return;
         // When scrolling, the window is a viewport onto the UI, which keeps
         // its own size.
         if (m_scrolls) return;

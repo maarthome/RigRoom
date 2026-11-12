@@ -102,7 +102,7 @@ struct Helper {
     using GtkVBoxNew = void* (*)(int, int);
     using GtkButtonNewWithLabel = void* (*)(const char*);
     using GtkBoxPackStart = void (*)(void*, void*, int, int, unsigned int);
-    static constexpr int kCloseBarHeight = 40;
+    static constexpr int kCloseBarHeight = 64;
 
     static void closeClicked(void*, void*) {
         QCoreApplication::quit();
@@ -127,9 +127,10 @@ struct Helper {
         using GtkWindowMove = void (*)(void*, int, int);
         auto resizeWindow = reinterpret_cast<GtkWindowResize>(gtk.resolve("gtk_window_resize"));
         auto moveWindow = reinterpret_cast<GtkWindowMove>(gtk.resolve("gtk_window_move"));
-        if (!window || contentWidth <= 0 || contentHeight <= 0) return;
-        if (resizeWindow) resizeWindow(window, contentWidth, contentHeight);
-        if (moveWindow) moveWindow(window, qMax(0, (screenW - contentWidth) / 2), qMax(0, (screenH - contentHeight) / 2));
+        if (!window || screenW <= 0 || screenH <= 0) return;
+        // The whole screen, black, with the plugin centred in it.
+        if (resizeWindow) resizeWindow(window, screenW, screenH);
+        if (moveWindow) moveWindow(window, 0, 0);
     }
 
     Helper(const char* gtkLibrary, const char* containerType, const char* uiType, QString titlePrefix)
@@ -281,17 +282,62 @@ struct Helper {
             auto vboxNew = reinterpret_cast<GtkVBoxNew>(gtk.resolve("gtk_vbox_new"));
             auto buttonNew = reinterpret_cast<GtkButtonNewWithLabel>(gtk.resolve("gtk_button_new_with_label"));
             auto packStart = reinterpret_cast<GtkBoxPackStart>(gtk.resolve("gtk_box_pack_start"));
+            // Black around the plugin, the plugin centred in the screen.
+            struct GdkColorData { quint32 pixel; quint16 red, green, blue; };
+            using GtkWidgetModifyBg = void (*)(void*, int, const GdkColorData*);
+            using GtkAlignmentNew = void* (*)(float, float, float, float);
+            using GtkHBoxNew = void* (*)(int, int);
+            using GtkLabelNew = void* (*)(const char*);
+            using GtkLabelSetMarkup = void (*)(void*, const char*);
+            using GtkBinGetChild = void* (*)(void*);
+            using GtkWidgetSetSizeRequest = void (*)(void*, int, int);
+            auto modifyBg = reinterpret_cast<GtkWidgetModifyBg>(gtk.resolve("gtk_widget_modify_bg"));
+            auto alignmentNew = reinterpret_cast<GtkAlignmentNew>(gtk.resolve("gtk_alignment_new"));
+            auto hboxNew = reinterpret_cast<GtkHBoxNew>(gtk.resolve("gtk_hbox_new"));
+            auto labelNew = reinterpret_cast<GtkLabelNew>(gtk.resolve("gtk_label_new"));
+            auto setMarkup = reinterpret_cast<GtkLabelSetMarkup>(gtk.resolve("gtk_label_set_markup"));
+            auto binChild = reinterpret_cast<GtkBinGetChild>(gtk.resolve("gtk_bin_get_child"));
+            auto setSizeRequest = reinterpret_cast<GtkWidgetSetSizeRequest>(gtk.resolve("gtk_widget_set_size_request"));
+            const GdkColorData black{0, 0, 0, 0};
+            if (modifyBg) modifyBg(window, 0 /* GTK_STATE_NORMAL */, &black);
+            if (alignmentNew) {
+                const float scale = scrolled ? 1.0f : 0.0f;
+                void* centre = alignmentNew(0.5f, 0.5f, scale, scale);
+                containerAdd(centre, content);
+                content = centre;
+            }
             if (vboxNew && buttonNew && packStart) {
                 void* box = vboxNew(0, 0);
                 void* closeButton = buttonNew("\u25C0  BACK");
+                if (binChild && setMarkup)
+                    if (void* label = binChild(closeButton))
+                        setMarkup(label, "<span size='xx-large' weight='bold'>\u25C0  BACK</span>");
+                if (setSizeRequest) setSizeRequest(closeButton, 150, kCloseBarHeight - 8);
                 connectSignal(closeButton, "clicked", reinterpret_cast<void (*)()>(&Helper::closeClicked),
                               this, nullptr, 0);
-                packStart(box, closeButton, 0, 1, 0);
+                void* bar = hboxNew ? hboxNew(0, 12) : nullptr;
+                if (bar) {
+                    packStart(bar, closeButton, 0, 0, 4);
+                    if (labelNew && setMarkup) {
+                        void* name = labelNew("");
+                        QByteArray markup = "<span size='xx-large' weight='bold' foreground='#FFFFFF'>";
+                        markup += QString::fromStdString(lilvTakeString(lilv_plugin_get_name(plugin)))
+                                      .toHtmlEscaped().toUtf8();
+                        markup += "</span>";
+                        setMarkup(name, markup.constData());
+                        packStart(bar, name, 1, 1, 0);
+                    }
+                    if (setSizeRequest) setSizeRequest(bar, -1, kCloseBarHeight);
+                    packStart(box, bar, 0, 1, 0);
+                } else {
+                    packStart(box, closeButton, 0, 1, 0);
+                }
                 packStart(box, content, 1, 1, 0);
                 containerAdd(window, box);
             } else {
                 containerAdd(window, content);
             }
+            if (setDefaultSize && screenWidth > 0 && screenHeight > 0) setDefaultSize(window, screenWidth, screenHeight);
         }
         (void)scrolled;
         connectSignal(window, "delete-event", reinterpret_cast<void (*)()>(&Helper::closeWindow),
@@ -397,6 +443,8 @@ struct X11Helper {
     Display* display = nullptr;
     Window window = 0;
     Window child = 0;
+    Window viewport = 0;  // the part of the screen below the bar that shows the plugin
+    XFontStruct* barFont = nullptr;
     Atom closeMessage = None;
     const LV2UI_Idle_Interface* idle = nullptr;
     const LV2UI_Resize* resize = nullptr;
@@ -427,9 +475,9 @@ struct X11Helper {
     // A bar above the plugin with a Close button, and arrow buttons when the
     // plugin is larger than the screen: without a window manager the window
     // has no title bar, so this is the only way to close it.
-    static constexpr int kBarHeight = 44;
-    static constexpr int kCloseWidth = 84;
-    static constexpr int kArrowWidth = 48;
+    static constexpr int kBarHeight = 64;
+    static constexpr int kCloseWidth = 150;
+    static constexpr int kArrowWidth = 64;
     int screenWidth = 0;
     int screenHeight = 0;
     int uiWidth = 0;    // plugin view
@@ -464,54 +512,87 @@ struct X11Helper {
         layoutView();
     }
 
-    // Size the window to the plugin, no larger than the screen, and place the
-    // plugin below the bar, shifted by the pan offset.
+    // The window covers the whole screen in black: the bar at the top, the
+    // plugin centred below it (shifted by the pan offset when it is larger).
     void layoutView() {
         if (!display || !window) return;
-        viewWidth = qMax(kCloseWidth + 4 * kArrowWidth + 16, qMin(uiWidth, screenWidth));
-        viewWidth = qMin(viewWidth, qMax(1, screenWidth));
-        viewHeight = qMax(1, qMin(uiHeight, screenHeight - kBarHeight));
+        const int roomWidth = qMax(1, screenWidth);
+        const int roomHeight = qMax(1, screenHeight - kBarHeight);
+        viewWidth = qMax(1, qMin(uiWidth, roomWidth));
+        viewHeight = qMax(1, qMin(uiHeight, roomHeight));
         panX = qBound(0, panX, qMax(0, uiWidth - viewWidth));
         panY = qBound(0, panY, qMax(0, uiHeight - viewHeight));
-        XMoveResizeWindow(display, window, qMax(0, (screenWidth - viewWidth) / 2),
-                          qMax(0, (screenHeight - viewHeight - kBarHeight) / 2), viewWidth, viewHeight + kBarHeight);
-        if (child) XMoveResizeWindow(display, child, -panX, kBarHeight - panY, qMax(1, uiWidth), qMax(1, uiHeight));
+        XMoveResizeWindow(display, window, 0, 0, roomWidth, roomHeight + kBarHeight);
+        if (viewport)
+            XMoveResizeWindow(display, viewport, (roomWidth - viewWidth) / 2,
+                              kBarHeight + (roomHeight - viewHeight) / 2, viewWidth, viewHeight);
+        if (child) XMoveResizeWindow(display, child, -panX, -panY, qMax(1, uiWidth), qMax(1, uiHeight));
         drawBar();
         XFlush(display);
     }
 
+    // A large font for the bar (twice the X default), whatever is installed.
+    void loadBarFont() {
+        const char* names[] = {"-*-dejavu sans-bold-r-normal--26-*-*-*-*-*-iso8859-1",
+                               "-*-helvetica-bold-r-normal--24-*-*-*-*-*-iso8859-1",
+                               "-*-*-bold-r-normal--24-*-*-*-*-*-iso8859-1",
+                               "12x24", "-*-*-*-r-*--24-*-*-*-*-*-iso8859-1", "10x20", "9x15bold"};
+        for (const char* name : names) {
+            barFont = XLoadQueryFont(display, name);
+            if (barFont) break;
+        }
+        if (barFont && gc) XSetFont(display, gc, barFont->fid);
+    }
+
+    int textWidth(const char* text, int length) const {
+        return barFont ? XTextWidth(barFont, text, length) : length * 6;
+    }
+
+    int textBaseline() const {
+        if (!barFont) return kBarHeight / 2 + 4;
+        return (kBarHeight - (barFont->ascent + barFont->descent)) / 2 + barFont->ascent;
+    }
+
     void drawButton(int x, int width, const char* label, unsigned long colour) {
         XSetForeground(display, gc, colour);
-        XFillRectangle(display, window, gc, x, 4, width, kBarHeight - 8);
+        XFillRectangle(display, window, gc, x, 6, width, kBarHeight - 12);
         XSetForeground(display, gc, 0xFFFFFF);
         const int length = static_cast<int>(std::strlen(label));
-        XDrawString(display, window, gc, x + width / 2 - length * 3, kBarHeight / 2 + 4, label, length);
+        XDrawString(display, window, gc, x + (width - textWidth(label, length)) / 2, textBaseline(), label, length);
     }
 
     void drawBar() {
         if (!gc) return;
         barButtons.clear();
-        XSetForeground(display, gc, 0x2A2A30);
-        XFillRectangle(display, window, gc, 0, 0, viewWidth, kBarHeight);
+        const int barWidth = qMax(1, screenWidth);
+        XSetForeground(display, gc, 0x000000);
+        XFillRectangle(display, window, gc, 0, 0, barWidth, qMax(1, screenHeight));
+        XSetForeground(display, gc, 0x1A1A1E);
+        XFillRectangle(display, window, gc, 0, 0, barWidth, kBarHeight);
         XSetForeground(display, gc, 0x00B0FF);
-        XFillRectangle(display, window, gc, 0, kBarHeight - 2, viewWidth, 2);
+        XFillRectangle(display, window, gc, 0, kBarHeight - 2, barWidth, 2);
         // BACK at the top left, like RigRoom's own pages.
-        drawButton(4, kCloseWidth, "< BACK", 0x00897B);
-        barButtons.push_back({4, kCloseWidth, 'c'});
-        int right = viewWidth;
+        drawButton(6, kCloseWidth, "< BACK", 0x00897B);
+        barButtons.push_back({6, kCloseWidth, 'c'});
+        int right = barWidth;
         if (pannable()) {
             const struct { const char* label; char action; } arrows[] = {{">", 'r'}, {"v", 'd'}, {"^", 'u'}, {"<", 'l'}};
             for (const auto& arrow : arrows) {
-                right -= kArrowWidth + 4;
+                right -= kArrowWidth + 6;
                 drawButton(right, kArrowWidth, arrow.label, 0x3A3A44);
                 barButtons.push_back({right, kArrowWidth, arrow.action});
             }
         }
-        XSetForeground(display, gc, 0xE0E0E0);
-        const int titleX = 4 + kCloseWidth + 14;
-        const int titleRoom = qMax(0, (right - titleX - 8) / 7);
-        XDrawString(display, window, gc, titleX, kBarHeight / 2 + 4, barTitle.constData(),
-                    qMin(static_cast<int>(barTitle.size()), titleRoom));
+        // The plugin's name, large, centred in the room between the buttons.
+        XSetForeground(display, gc, 0xFFFFFF);
+        const int left = 6 + kCloseWidth + 16;
+        const int room = qMax(0, right - left - 16);
+        int length = static_cast<int>(barTitle.size());
+        while (length > 0 && textWidth(barTitle.constData(), length) > room) --length;
+        const int width = textWidth(barTitle.constData(), length);
+        const int centred = (barWidth - width) / 2;
+        const int titleX = qBound(left, centred, qMax(left, right - 16 - width));
+        XDrawString(display, window, gc, titleX, textBaseline(), barTitle.constData(), length);
     }
 
     void barPressed(int x) {
@@ -659,7 +740,14 @@ struct X11Helper {
 
         barTitle = QString::fromStdString(lilvTakeString(lilv_plugin_get_name(plugin))).toLatin1();
         gc = XCreateGC(display, window, 0, nullptr);
-        XReparentWindow(display, child, window, 0, kBarHeight);
+        loadBarFont();
+        // The plugin goes in a black viewport below the bar, so a plugin
+        // larger than the screen never covers the bar while it is panned.
+        viewport = XCreateSimpleWindow(display, window, 0, kBarHeight, 1, 1, 0,
+                                       BlackPixel(display, DefaultScreen(display)),
+                                       BlackPixel(display, DefaultScreen(display)));
+        XMapWindow(display, viewport);
+        XReparentWindow(display, child, viewport, 0, 0);
         XSizeHints sizeHints{};
         sizeHints.flags = PMinSize | PPosition;
         sizeHints.min_width = 1;
@@ -749,7 +837,7 @@ struct X11Helper {
                 } else if (event.type == ButtonPress && event.xbutton.window == window && event.xbutton.y < kBarHeight) {
                     barPressed(event.xbutton.x);
                 } else if (event.type == ConfigureNotify && event.xconfigure.window == window && resize &&
-                           !(event.xconfigure.width == viewWidth && event.xconfigure.height == viewHeight + kBarHeight)) {
+                           !(event.xconfigure.width == screenWidth && event.xconfigure.height == screenHeight)) {
                     // A window manager resized the window: a resizable UI
                     // follows, within the screen.
                     const int wantedWidth = qMin(event.xconfigure.width, qMax(1, screenWidth));
@@ -775,6 +863,7 @@ struct X11Helper {
         eventTimer.stop();
         idleTimer.stop();
         if (instance) suil_instance_free(instance);
+        if (display && barFont) XFreeFont(display, barFont);
         if (display && gc) XFreeGC(display, gc);
         if (display && window) XDestroyWindow(display, window);
         if (display) XCloseDisplay(display);

@@ -1,5 +1,7 @@
 #include "InspectorComponents.h"
 #include "UiScale.h"
+#include "OnScreenKeyboard.h"
+#include <QPointer>
 #include <QInputDialog>
 #include <QMouseEvent>
 #include <QPainter>
@@ -242,10 +244,9 @@ void InspectorValueLabel::setEditor(const QString &title, double minimum,
 
 void InspectorValueLabel::mouseReleaseEvent(QMouseEvent *event) {
   if (event->button() == Qt::LeftButton && m_currentValue && m_valueChanged) {
-    bool accepted = false;
-    const double value = QInputDialog::getDouble(this, m_title, "Value:",
-        m_currentValue(), m_minimum, m_maximum, m_decimals, &accepted);
-    if (accepted) m_valueChanged(value);
+    QPointer<InspectorValueLabel> self(this);
+    OnScreenKeyboard::askValue(this, m_title, m_currentValue(), m_minimum, m_maximum, m_decimals,
+        [self](double value) { if (self && self->m_valueChanged) self->m_valueChanged(value); });
     event->accept();
     return;
   }

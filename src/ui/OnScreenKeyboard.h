@@ -7,6 +7,12 @@
 #include <QEvent>
 #include <QFocusEvent>
 #include <QGridLayout>
+#include <QDoubleValidator>
+#include <QHBoxLayout>
+#include <QInputDialog>
+#include <QLabel>
+#include <QLocale>
+#include <functional>
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -77,28 +83,50 @@ public:
     }
 
     QWidget* field() const { return m_field; }
+    bool typingValue() const { return m_valueMode; }
+
+    // Ask for a number: the keyboard opens with its own entry line showing
+    // `value` (selected, so typing replaces it); Enter calls `done` with the
+    // number (kept within minimum..maximum), Hide cancels. Without the
+    // on-screen keyboard this is the usual input dialog.
+    static void askValue(QWidget* near, const QString& title, double value, double minimum, double maximum,
+                         int decimals, std::function<void(double)> done) {
+        if (!enabled()) {
+            bool accepted = false;
+            const double result = QInputDialog::getDouble(near, title, "Value:", value, minimum, maximum, decimals, &accepted);
+            if (accepted && done) done(result);
+            return;
+        }
+        instance()->openValue(near, title, value, minimum, maximum, decimals, std::move(done));
+    }
+
+    void openValue(QWidget* near, const QString& title, double value, double minimum, double maximum,
+                   int decimals, std::function<void(double)> done) {
+        hideKeyboard();
+        m_valueMode = true;
+        m_valueDone = std::move(done);
+        m_valueMinimum = minimum;
+        m_valueMaximum = maximum;
+        if (const QValidator* previous = m_entry->validator()) const_cast<QValidator*>(previous)->deleteLater();
+        auto* validator = new QDoubleValidator(minimum, maximum, decimals, m_entry);
+        validator->setLocale(QLocale::c());
+        validator->setNotation(QDoubleValidator::StandardNotation);
+        m_entry->setValidator(validator);
+        m_entryTitle->setText(QString("%1   (%2 to %3)").arg(title,
+            QLocale::c().toString(minimum, 'f', decimals), QLocale::c().toString(maximum, 'f', decimals)));
+        m_entry->setText(QLocale::c().toString(value, 'f', decimals));
+        m_entry->selectAll();
+        m_entryRow->show();
+        place(near ? near->window() : nullptr, near);
+    }
 
     void showFor(QWidget* field) {
         if (!field) return;
+        if (m_valueMode) cancelValue();
         if (field != m_field) restoreWindow();
         m_field = field;
-        // Belong to the field's window: a modal dialog (e.g. the one for typing
-        // a parameter value) blocks taps on every other window, the keyboard
-        // included, unless the keyboard is its child.
-        if (QWidget* host = field->window(); host && host != this && parentWidget() != host) {
-            const Qt::WindowFlags flags = windowFlags();
-            setParent(host, flags);
-        }
-        QScreen* screen = field->screen() ? field->screen() : QGuiApplication::primaryScreen();
-        if (!screen) return;
-        const QRect area = screen->availableGeometry();
-        const int height = qMax(180, area.height() * 40 / 100);
-        // Fixed: as the child of a dialog the keys would otherwise take on its
-        // button style and grow the keyboard past the bottom of the screen.
-        setFixedSize(area.width(), height);
-        move(area.left(), area.bottom() + 1 - height);
-        show();
-        raise();
+        m_entryRow->hide();
+        place(field->window(), field);
         // Give the field's window the keyboard focus explicitly. Without a
         // window manager X otherwise hands focus to whatever window the finger
         // is on, and tapping a key would take it away from the field.
@@ -110,7 +138,29 @@ public:
         keepFieldVisible();
     }
 
+    // Show at the bottom of the screen, as a child of `host` (see showFor).
+    void place(QWidget* host, QWidget* near) {
+        // Belong to the field's window: a modal dialog blocks taps on every
+        // other window, the keyboard included, unless the keyboard is its child.
+        if (host && host != this && parentWidget() != host) {
+            const Qt::WindowFlags flags = windowFlags();
+            setParent(host, flags);
+        }
+        QScreen* screen = (near && near->screen()) ? near->screen() : QGuiApplication::primaryScreen();
+        if (!screen) return;
+        const QRect area = screen->availableGeometry();
+        int height = qMax(180, area.height() * 40 / 100);
+        if (m_entryRow->isVisibleTo(this)) height += qMax(48, area.height() * 10 / 100);
+        // Fixed: as the child of a dialog the keys would otherwise take on its
+        // button style and grow the keyboard past the bottom of the screen.
+        setFixedSize(area.width(), height);
+        move(area.left(), area.bottom() + 1 - height);
+        show();
+        raise();
+    }
+
     void hideKeyboard() {
+        if (m_valueMode) cancelValue();
         hide();
         restoreWindow();
         m_field = nullptr;
@@ -135,6 +185,23 @@ private:
         grid->setContentsMargins(6, 6, 6, 6);
         grid->setSpacing(5);
 
+        // The entry line for typing a value (askValue); hidden otherwise.
+        m_entryRow = new QWidget(this);
+        auto* entryLayout = new QHBoxLayout(m_entryRow);
+        entryLayout->setContentsMargins(4, 0, 4, 0);
+        entryLayout->setSpacing(12);
+        m_entryTitle = new QLabel(m_entryRow);
+        m_entryTitle->setStyleSheet("color: #C9CDD5; font-size: 18px; font-weight: bold; background: transparent;");
+        m_entry = new QLineEdit(m_entryRow);
+        m_entry->setFocusPolicy(Qt::NoFocus);
+        m_entry->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        m_entry->setStyleSheet("QLineEdit { background: #0E0F12; color: #7FD3FF; border: 2px solid #00B0FF;"
+                               " border-radius: 6px; font-size: 26px; font-weight: bold; padding: 2px 10px; }");
+        entryLayout->addWidget(m_entryTitle, 1);
+        entryLayout->addWidget(m_entry, 1);
+        grid->addWidget(m_entryRow, 0, 0, 1, 22);
+        m_entryRow->hide();
+
         // Each row is 20 units wide; a normal key takes 2 units.
         const QStringList rows[] = {
             {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
@@ -143,33 +210,35 @@ private:
             {"z", "x", "c", "v", "b", "n", "m", "-", "."},
         };
         for (int r = 0; r < 4; ++r) {
+            const int gridRow = r + 1;  // row 0 is the entry line
             int column = (r == 2) ? 1 : 0;
             if (r == 3) {
-                addSpecial(grid, r, column, 2, QString::fromUtf8("⇧"), [this]() { setShift(!m_shift); }, &m_shiftKey);
+                addSpecial(grid, gridRow, column, 2, QString::fromUtf8("⇧"), [this]() { setShift(!m_shift); }, &m_shiftKey);
                 column += 2;
             }
             for (const QString& key : rows[r]) {
-                QPushButton* button = addKey(grid, r, column, 2, key);
+                QPushButton* button = addKey(grid, gridRow, column, 2, key);
                 if (key.at(0).isLetter()) m_letterKeys.push_back(button);
                 column += 2;
             }
-            if (r == 0) addSpecial(grid, r, column, 2, QString::fromUtf8("⌫"), [this]() { sendKey(Qt::Key_Backspace, QString()); });
-            if (r == 2) addSpecial(grid, r, column, 3, QString::fromUtf8("⏎"), [this]() { sendKey(Qt::Key_Return, QStringLiteral("\r")); });
+            if (r == 0) addSpecial(grid, gridRow, column, 2, QString::fromUtf8("⌫"), [this]() { sendKey(Qt::Key_Backspace, QString()); });
+            if (r == 2) addSpecial(grid, gridRow, column, 3, QString::fromUtf8("⏎"), [this]() { sendKey(Qt::Key_Return, QStringLiteral("\r")); });
         }
         int column = 0;
-        addSpecial(grid, 4, column, 3, QString::fromUtf8("▼ Hide"), [this]() { hideKeyboard(); });
+        addSpecial(grid, 5, column, 3, QString::fromUtf8("▼ Hide"), [this]() { hideKeyboard(); });
         column += 3;
-        addKey(grid, 4, column, 2, "_");
+        addKey(grid, 5, column, 2, "_");
         column += 2;
-        addKey(grid, 4, column, 2, "/");
+        addKey(grid, 5, column, 2, "/");
         column += 2;
-        addSpecial(grid, 4, column, 8, "space", [this]() { sendKey(Qt::Key_Space, QStringLiteral(" ")); });
+        addSpecial(grid, 5, column, 8, "space", [this]() { sendKey(Qt::Key_Space, QStringLiteral(" ")); });
         column += 8;
-        addSpecial(grid, 4, column, 2, QString::fromUtf8("◀"), [this]() { sendKey(Qt::Key_Left, QString()); });
+        addSpecial(grid, 5, column, 2, QString::fromUtf8("◀"), [this]() { sendKey(Qt::Key_Left, QString()); });
         column += 2;
-        addSpecial(grid, 4, column, 2, QString::fromUtf8("▶"), [this]() { sendKey(Qt::Key_Right, QString()); });
+        addSpecial(grid, 5, column, 2, QString::fromUtf8("▶"), [this]() { sendKey(Qt::Key_Right, QString()); });
         for (int c = 0; c < 22; ++c) grid->setColumnStretch(c, 1);
-        for (int r = 0; r < 5; ++r) grid->setRowStretch(r, 1);
+        grid->setRowStretch(0, 0);
+        for (int r = 1; r <= 5; ++r) grid->setRowStretch(r, 1);
     }
 
     QPushButton* makeButton(const QString& label) {
@@ -222,6 +291,15 @@ private:
     }
 
     void sendKey(int key, const QString& text) {
+        if (m_valueMode) {
+            // Typing a value: the keyboard's own entry line.
+            if (key == Qt::Key_Return) finishValue();
+            else if (key == Qt::Key_Backspace) m_entry->backspace();
+            else if (key == Qt::Key_Left) m_entry->cursorBackward(false);
+            else if (key == Qt::Key_Right) m_entry->cursorForward(false);
+            else m_entry->insert(text);
+            return;
+        }
         // Always the field the keyboard was opened for, whatever has focus.
         QWidget* target = m_field;
         if (!target) target = QApplication::focusWidget();
@@ -285,6 +363,32 @@ private:
         m_movedWindow = nullptr;
     }
 
+    void finishValue() {
+        bool ok = false;
+        double value = QLocale::c().toDouble(m_entry->text(), &ok);
+        auto done = std::move(m_valueDone);
+        m_valueDone = nullptr;
+        m_valueMode = false;
+        m_entryRow->hide();
+        hide();
+        restoreWindow();
+        if (ok && done) done(qBound(m_valueMinimum, value, m_valueMaximum));
+    }
+
+    void cancelValue() {
+        m_valueMode = false;
+        m_valueDone = nullptr;
+        m_entryRow->hide();
+    }
+
+    QWidget* m_entryRow = nullptr;
+    QLabel* m_entryTitle = nullptr;
+    QLineEdit* m_entry = nullptr;
+    bool m_valueMode = false;
+    std::function<void(double)> m_valueDone;
+    double m_valueMinimum = 0.0;
+    double m_valueMaximum = 1.0;
+
     bool m_shift = false;
     QPushButton* m_shiftKey = nullptr;
     QList<QPushButton*> m_letterKeys;
@@ -334,6 +438,7 @@ protected:
                 QWidget* now = QApplication::focusWidget();
                 OnScreenKeyboard* keyboard = OnScreenKeyboard::instance();
                 if (now && (now == keyboard || keyboard->isAncestorOf(now))) return;
+                if (keyboard->typingValue()) return;  // its own entry line, not a field
                 if (!now || !OnScreenKeyboard::fieldFor(now)) keyboard->hideKeyboard();
             });
         }

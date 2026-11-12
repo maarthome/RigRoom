@@ -83,10 +83,10 @@ inline void addPluginBar(QWidget* window, QVBoxLayout* layout, const QString& ti
     bar->setObjectName("pluginBar");
     bar->setFixedHeight(kPluginBarHeight);
     // Large enough to hit with a finger on a small touchscreen.
-    bar->setStyleSheet("QWidget#pluginBar { background: #2A2A30; border-bottom: 2px solid #00B0FF; }"
-                       "QLabel { color: #F0F0F0; font-weight: bold; font-size: 16px; background: transparent; }"
+    bar->setStyleSheet("QWidget#pluginBar { background: #1A1A1E; border-bottom: 2px solid #00B0FF; }"
+                       "QLabel { color: #FFFFFF; font-weight: bold; font-size: 32px; background: transparent; }"
                        "QPushButton { background: #00897B; color: #FFFFFF; border: none;"
-                       " border-radius: 6px; padding: 4px 22px; font-weight: bold; font-size: 18px; }"
+                       " border-radius: 6px; padding: 4px 22px; font-weight: bold; font-size: 24px; }"
                        "QPushButton:pressed { background: #00695C; }");
     auto* row = new QHBoxLayout(bar);
     row->setContentsMargins(4, 3, 10, 3);
@@ -98,7 +98,10 @@ inline void addPluginBar(QWidget* window, QVBoxLayout* layout, const QString& ti
     QObject::connect(back, &QPushButton::clicked, window, &QWidget::close);
     row->addWidget(back);
     auto* label = new QLabel(title, bar);
+    label->setAlignment(Qt::AlignCenter);
     row->addWidget(label, 1);
+    // Keep the name centred on the screen: as much room right as BACK takes.
+    row->addSpacing(140);
     layout->insertWidget(0, bar);
 }
 
