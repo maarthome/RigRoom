@@ -22,6 +22,9 @@
 - Parameter controls are arranged in rows of a set number (Settings > GUI > Controls per Row, 5 by default). Text Size and Screen Scale moved to the new GUI tab.
 - The signal path can wrap into rows: when it is wider than the screen it continues at the left of the next row, like lines of text (Settings > GUI > Signal Chain).
 - Settings > GUI also sets Plugins per Line, Plugin Block Size, and the sizes of the bank/presets/scenes buttons, the top toolbar and the board's corner controls. No size can push a part off the screen: it shrinks to what fits.
+- Wrapped rows of plugin blocks after the first start at the left edge, under the input block.
+- The Settings window is 1.5 times larger by default (Settings > GUI > Settings Window).
+- An on-screen keyboard appears when a text or number field is tapped; the field's window moves up so the keyboard does not cover it (Settings > GUI > On-screen Keyboard).
 
 ## 0.13.0 - 2026-10-01
 

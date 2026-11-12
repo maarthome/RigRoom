@@ -21,8 +21,8 @@
 // Applied at startup.
 namespace SectionScale {
 
-inline int percent(const char* key) {
-    return qBound(50, QSettings("RigRoom", "RigRoom").value(key, 100).toInt(), 300);
+inline int percent(const char* key, int defaultPercent = 100) {
+    return qBound(50, QSettings("RigRoom", "RigRoom").value(key, defaultPercent).toInt(), 300);
 }
 
 inline void setPercent(const char* key, int value) {
@@ -126,9 +126,9 @@ private:
 // but never so far that it no longer fits in `room` (logical pixels; an
 // empty dimension is not limited). Too large a setting shrinks to what fits,
 // down to 50% of the normal size.
-inline double apply(QWidget* root, const char* key, const QSize& room = QSize()) {
+inline double apply(QWidget* root, const char* key, const QSize& room = QSize(), int defaultPercent = 100) {
     if (!root) return 1.0;
-    double factor = percent(key) / 100.0;
+    double factor = percent(key, defaultPercent) / 100.0;
     root->ensurePolished();
     const QSize natural = root->minimumSizeHint().expandedTo(root->minimumSize());
     if (room.width() > 0 && natural.width() > 0)

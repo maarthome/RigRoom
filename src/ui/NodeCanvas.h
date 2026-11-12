@@ -240,9 +240,14 @@ private:
     int activeLaneSteps() const;
     qreal canvasHeightFor(qreal viewportHeight) const;
     int snakeBandOf(qreal u) const;
+    int bandColumnsOf(int band) const;   // columns on line `band`
+    qreal bandStartU(int band) const;    // track distance where line `band` starts
+    qreal bandLeftX(int band) const;     // scene x of the start of line `band`
     bool m_snake = false;
     int m_snakeColumns = 0;    // chosen blocks per line; 0 = fit the width
-    int m_bandColumns = 0;     // columns per line; 0 = one straight line
+    int m_bandColumns = 0;     // columns on the first line; 0 = one straight line
+    int m_bandColumnsRest = 0; // columns on the following lines (they start further left)
+    qreal m_rowLeft = 0.0;     // scene x where the following lines start
     int m_bandCount = 1;
     qreal m_bandHeight = 0.0;  // height of one line (all its lanes)
     qreal m_trackBase = 0.0;   // logical x of gap 0

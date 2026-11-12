@@ -957,13 +957,23 @@ void MainWindow::setupUI() {
     });
     guiForm->addRow("Plugin Block Size:", blockSizeSpin);
 
+    QComboBox* keyboardCombo = new QComboBox(m_settingsDialog);
+    keyboardCombo->addItem("On (when a text field is tapped)", true);
+    keyboardCombo->addItem("Off", false);
+    keyboardCombo->setCurrentIndex(QSettings("RigRoom", "RigRoom").value("gui_onscreen_keyboard", true).toBool() ? 0 : 1);
+    keyboardCombo->setToolTip("A touch keyboard at the bottom of the screen for typing names and values");
+    connect(keyboardCombo, &QComboBox::currentIndexChanged, this, [keyboardCombo](int index) {
+        QSettings("RigRoom", "RigRoom").setValue("gui_onscreen_keyboard", keyboardCombo->itemData(index).toBool());
+    });
+    guiForm->addRow("On-screen Keyboard:", keyboardCombo);
+
     // Sizes of other parts of the window; they apply at the next start.
-    auto addSectionSize = [this, guiForm](const QString& label, const char* key, const QString& tip) {
+    auto addSectionSize = [this, guiForm](const QString& label, const char* key, const QString& tip, int defaultPercent = 100) {
         auto* spin = new QSpinBox(m_settingsDialog);
         spin->setRange(50, 300);
         spin->setSingleStep(10);
         spin->setSuffix("%");
-        spin->setValue(SectionScale::percent(key));
+        spin->setValue(SectionScale::percent(key, defaultPercent));
         spin->setToolTip(tip + " (applies the next time RigRoom starts)");
         connect(spin, &QSpinBox::valueChanged, this, [key](int percent) { SectionScale::setPercent(key, percent); });
         guiForm->addRow(label, spin);
@@ -971,6 +981,7 @@ void MainWindow::setupUI() {
     addSectionSize("Bank / Presets / Scenes:", "gui_panel_scale", "Size of the bank, preset A-D and scene buttons");
     addSectionSize("Top Toolbar:", "gui_toolbar_scale", "Size of the items in the top row");
     addSectionSize("Corner Controls:", "gui_corner_scale", "Size of the zoom and column controls in the board's lower-right corner");
+    addSectionSize("Settings Window:", "gui_settings_scale", "Size of the text and fields in this Settings window", 150);
 
     QSpinBox* perRowSpin = new QSpinBox(m_settingsDialog);
     perRowSpin->setRange(1, 16);
@@ -1763,6 +1774,10 @@ void MainWindow::setupUI() {
                                 QSize(roomWidth > 0 ? roomWidth - 32 : 0, roomHeight > 0 ? roomHeight * 25 / 100 : 0));
             m_canvas->refreshZoomOverlay();
         }
+        // Settings: larger text and fields for a touchscreen (150% unless set
+        // otherwise). Its pages scroll and the window is kept on screen, so no
+        // size limit is needed here.
+        if (m_settingsDialog) SectionScale::apply(m_settingsDialog, "gui_settings_scale", QSize(), 150);
     }
     {
         const int blockPercent = std::clamp(QSettings("RigRoom", "RigRoom").value("gui_block_scale", 100).toInt(), 50, 200);

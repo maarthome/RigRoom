@@ -12,6 +12,7 @@ extern "C" int XInitThreads(void);
 #include "ui/PluginSnapshot.h"
 #include "ui/UiScale.h"
 #include "ui/ScreenFit.h"
+#include "ui/OnScreenKeyboard.h"
 #include "ScreenProbe.h"
 #include "Version.h"
 #include <csignal>
@@ -125,6 +126,8 @@ int main(int argc, char* argv[]) {
     UiScale::initialize(app);
     // Dialogs larger than the screen (small touchscreens) are shrunk to fit.
     app.installEventFilter(new ScreenFit::DialogFitter(&app));
+    // Touch keyboard for text fields (Settings > GUI > On-screen Keyboard).
+    OnScreenKeyboard::install(app);
     app.setWindowIcon(QIcon(":/branding/rigroom-icon.png"));
     
     MainWindow window;
