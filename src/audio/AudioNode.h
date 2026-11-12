@@ -129,6 +129,18 @@ public:
     virtual std::string saveState() { return {}; }
     virtual bool restoreState(const std::string& state) { (void)state; return false; }
 
+    // Presets the plugin itself ships (LV2 presets, VST3 programs and
+    // .vstpreset files, CLAP preset discovery). Listing them may read files,
+    // so call from the GUI thread when needed, not on every repaint.
+    struct FactoryPreset {
+        std::string name;
+        std::string bank; // group shown as a submenu; may be empty
+    };
+    virtual std::vector<FactoryPreset> getFactoryPresets() { return {}; }
+    // Load one entry of the last getFactoryPresets() list. GUI thread; suspend
+    // audio processing around it. Control port values follow the preset.
+    virtual bool loadFactoryPreset(size_t index) { (void)index; return false; }
+
     // Set a control parameter value safely from the GUI thread
     virtual void setParameter(uint32_t index, float value) {
         for (auto& port : m_controlPorts) {

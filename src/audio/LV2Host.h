@@ -58,8 +58,14 @@ public:
     
     const LilvPlugin* getLilvPlugin() const { return m_plugin; }
     LilvWorld* getLilvWorld() const { return m_world; }
-    
+
+    std::vector<FactoryPreset> getFactoryPresets() override;
+    bool loadFactoryPreset(size_t index) override;
+    // lilv_state_restore callback target: one port value from a preset.
+    void applyPresetPortValue(const char* symbol, const void* value, uint32_t size, uint32_t type);
+
 private:
+    std::vector<std::string> m_factoryPresetUris;
     void scanPorts();
     void scanFileProperties();
     void startWorkerThread();

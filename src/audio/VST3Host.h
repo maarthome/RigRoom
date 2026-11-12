@@ -46,6 +46,9 @@ public:
     std::string saveState() override;
     bool restoreState(const std::string& state) override;
     void* getHostAppUnknown() const { return m_hostApp; }
+
+    std::vector<FactoryPreset> getFactoryPresets() override;
+    bool loadFactoryPreset(size_t index) override;
     
 private:
     std::string m_name;
@@ -66,4 +69,23 @@ private:
 
     void readParamsFromController();
     std::vector<std::vector<float>> m_audioBuffers;
+
+    // Class ID as 32 hex digits, in both byte orders; a .vstpreset names it in
+    // one of them.
+    std::string m_classIdStraight;
+    std::string m_classIdSwapped;
+
+    // One entry of the last getFactoryPresets() list: either a program of the
+    // plugin's program list, or a .vstpreset file.
+    struct PresetRef {
+        bool isProgram = false;
+        uint32_t paramId = 0;      // program-change parameter
+        double normalized = 0.0;   // its value selecting this program
+        std::string path;          // .vstpreset file
+    };
+    std::vector<PresetRef> m_presetRefs;
+    // A program change waiting for the next process() call.
+    std::atomic<bool> m_programChangePending{false};
+    std::atomic<uint32_t> m_programChangeParam{0};
+    std::atomic<double> m_programChangeValue{0.0};
 };

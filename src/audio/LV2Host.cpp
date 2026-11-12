@@ -872,3 +872,113 @@ void LV2PluginNode::scanFileProperties() {
         m_fileProperties.push_back(fp);
     }
 }
+
+// --- Presets the plugin ships (pset:Preset) ---------------------------------
+
+namespace {
+constexpr const char* kPsetPreset = "http://lv2plug.in/ns/ext/presets#Preset";
+constexpr const char* kPsetBank = "http://lv2plug.in/ns/ext/presets#bank";
+constexpr const char* kRdfsLabel = "http://www.w3.org/2000/01/rdf-schema#label";
+
+void lv2PresetSetPortValue(const char* symbol, void* userData, const void* value, uint32_t size, uint32_t type) {
+    static_cast<LV2PluginNode*>(userData)->applyPresetPortValue(symbol, value, size, type);
+}
+
+std::string lv2Label(LilvWorld* world, const LilvNode* subject, const LilvNode* labelPredicate) {
+    std::string label;
+    if (LilvNodes* labels = lilv_world_find_nodes(world, subject, labelPredicate, nullptr)) {
+        label = lilvString(lilv_nodes_get_first(labels));
+        lilv_nodes_free(labels);
+    }
+    return label;
+}
+} // namespace
+
+std::vector<AudioNode::FactoryPreset> LV2PluginNode::getFactoryPresets() {
+    m_factoryPresetUris.clear();
+    std::vector<FactoryPreset> result;
+    if (!m_plugin || !m_world) return result;
+
+    LilvNode* presetClass = lilv_new_uri(m_world, kPsetPreset);
+    LilvNode* labelPredicate = lilv_new_uri(m_world, kRdfsLabel);
+    LilvNode* bankPredicate = lilv_new_uri(m_world, kPsetBank);
+
+    struct Entry { FactoryPreset preset; std::string uri; };
+    std::vector<Entry> entries;
+    if (LilvNodes* presets = lilv_plugin_get_related(m_plugin, presetClass)) {
+        LILV_FOREACH(nodes, it, presets) {
+            const LilvNode* preset = lilv_nodes_get(presets, it);
+            const std::string uri = lilvUriText(preset);
+            if (uri.empty()) continue;
+            // Preset data lives in its own file, read only when asked for.
+            lilv_world_load_resource(m_world, preset);
+
+            Entry entry;
+            entry.uri = uri;
+            entry.preset.name = lv2Label(m_world, preset, labelPredicate);
+            if (entry.preset.name.empty()) entry.preset.name = lilvNameFromUri(uri);
+            if (LilvNodes* banks = lilv_world_find_nodes(m_world, preset, bankPredicate, nullptr)) {
+                const LilvNode* bank = lilv_nodes_get_first(banks);
+                entry.preset.bank = lv2Label(m_world, bank, labelPredicate);
+                if (entry.preset.bank.empty() && bank) entry.preset.bank = lilvNameFromUri(lilvUriText(bank));
+                lilv_nodes_free(banks);
+            }
+            entries.push_back(std::move(entry));
+        }
+        lilv_nodes_free(presets);
+    }
+    lilv_node_free(presetClass);
+    lilv_node_free(labelPredicate);
+    lilv_node_free(bankPredicate);
+
+    std::stable_sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
+        if (a.preset.bank != b.preset.bank) return a.preset.bank < b.preset.bank;
+        return a.preset.name < b.preset.name;
+    });
+    for (auto& entry : entries) {
+        result.push_back(entry.preset);
+        m_factoryPresetUris.push_back(entry.uri);
+    }
+    return result;
+}
+
+bool LV2PluginNode::loadFactoryPreset(size_t index) {
+    if (!m_plugin || index >= m_factoryPresetUris.size()) return false;
+    LilvNode* presetNode = lilv_new_uri(m_world, m_factoryPresetUris[index].c_str());
+    lilv_world_load_resource(m_world, presetNode);
+    LilvState* state = lilv_state_new_from_world(m_world, &m_uridMap, presetNode);
+    lilv_node_free(presetNode);
+    if (!state) {
+        std::cerr << "LV2Host: could not read preset " << m_factoryPresetUris[index] << std::endl;
+        return false;
+    }
+    // Port values arrive through the callback; plugin state (if the preset
+    // has any) goes to the instance's state interface.
+    lilv_state_restore(state, m_instance, lv2PresetSetPortValue, this, 0, m_features);
+    lilv_state_free(state);
+    return true;
+}
+
+void LV2PluginNode::applyPresetPortValue(const char* symbol, const void* value, uint32_t size, uint32_t type) {
+    if (!symbol || !value || !m_plugin) return;
+    auto urid = [this](const char* uri) { return m_uridMap.map(m_uridMap.handle, uri); };
+
+    float number = 0.0f;
+    if (type == urid(LV2_ATOM__Float) && size == sizeof(float)) {
+        number = *static_cast<const float*>(value);
+    } else if (type == urid(LV2_ATOM__Double) && size == sizeof(double)) {
+        number = static_cast<float>(*static_cast<const double*>(value));
+    } else if ((type == urid(LV2_ATOM__Int) || type == urid(LV2_ATOM__Bool)) && size == sizeof(int32_t)) {
+        number = static_cast<float>(*static_cast<const int32_t*>(value));
+    } else if (type == urid(LV2_ATOM__Long) && size == sizeof(int64_t)) {
+        number = static_cast<float>(*static_cast<const int64_t*>(value));
+    } else {
+        return;
+    }
+
+    LilvNode* symbolNode = lilv_new_string(m_world, symbol);
+    const LilvPort* port = lilv_plugin_get_port_by_symbol(m_plugin, symbolNode);
+    lilv_node_free(symbolNode);
+    if (!port) return;
+    setParameter(lilv_port_get_index(m_plugin, port), number);
+}

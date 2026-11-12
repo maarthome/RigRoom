@@ -38,6 +38,9 @@
 #include <QLineEdit>
 #include <QToolButton>
 #include <QToolTip>
+#include <QApplication>
+#include <QMap>
+#include <QVariant>
 #include <QPixmap>
 #include <QFileInfo>
 #include <suil/suil.h>
@@ -6268,7 +6271,7 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         m_paramLayout->addWidget(pluginHeader);
 
         auto* presetsButton = new QPushButton("Plugin Presets ▾", m_paramContainer);
-        presetsButton->setToolTip("Load, save, and manage reusable settings for this plugin");
+        presetsButton->setToolTip("Load the plugin's own presets, or load, save and manage your saved settings for this plugin");
         presetsButton->setStyleSheet(UiScale::css(
             "QPushButton { background-color: #333338; color: #C5DDE8; padding: 5px 8px; font-size: 11px; font-weight: bold; border-radius: 4px; border: none; }"
             "QPushButton:hover { background-color: #44444A; color: #FFFFFF; }"
@@ -6278,7 +6281,40 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
         connect(presetsButton, &QPushButton::clicked, this, [this, node, presetsButton]() {
             QMenu menu(this);
             // Saved presets are listed right here, so one click loads them.
-            QMenu* loadMenu = menu.addMenu("Load");
+            QMenu* loadMenu = menu.addMenu("Load Saved");
+            // The presets the plugin itself ships. Finding them can read many
+            // files, so the list is built when the submenu first opens.
+            QMenu* factoryMenu = menu.addMenu("Plugin's Own Presets");
+            factoryMenu->setStyleSheet(menu.styleSheet());
+            factoryMenu->addAction("Searching…")->setEnabled(false);
+            connect(factoryMenu, &QMenu::aboutToShow, factoryMenu, [factoryMenu, node]() {
+                if (factoryMenu->property("filled").toBool()) return;
+                factoryMenu->setProperty("filled", true);
+                factoryMenu->clear();
+                QApplication::setOverrideCursor(Qt::WaitCursor);
+                const std::vector<AudioNode::FactoryPreset> presets = node->getFactoryPresets();
+                QApplication::restoreOverrideCursor();
+                if (presets.empty()) {
+                    factoryMenu->addAction("This plugin offers no presets")->setEnabled(false);
+                    return;
+                }
+                bool severalBanks = false;
+                for (const auto& preset : presets) {
+                    if (preset.bank != presets.front().bank) { severalBanks = true; break; }
+                }
+                QMap<QString, QMenu*> bankMenus;
+                for (size_t i = 0; i < presets.size(); ++i) {
+                    QMenu* target = factoryMenu;
+                    if (severalBanks) {
+                        const QString bank = presets[i].bank.empty() ? QString("Other") : QString::fromStdString(presets[i].bank);
+                        QMenu*& bankMenu = bankMenus[bank];
+                        if (!bankMenu) bankMenu = factoryMenu->addMenu(bank);
+                        target = bankMenu;
+                    }
+                    QAction* action = target->addAction(QString::fromStdString(presets[i].name));
+                    action->setProperty("factoryPresetIndex", QVariant::fromValue<qulonglong>(i));
+                }
+            });
             {
                 const QStringList files = QDir(pluginPresetDirectory(*node)).entryList({"*.json"}, QDir::Files, QDir::Name);
                 if (files.isEmpty()) {
@@ -6306,7 +6342,24 @@ void MainWindow::showPluginControls(std::shared_ptr<AudioNode> node) {
                 return accepted ? name : QString{};
             };
             const bool loadChosen = chosen && loadMenu->actions().contains(chosen) && chosen->isEnabled();
-            if (loadChosen) {
+            if (chosen && chosen->property("factoryPresetIndex").isValid()) {
+                const size_t index = static_cast<size_t>(chosen->property("factoryPresetIndex").toULongLong());
+                const QString name = chosen->text();
+                m_engine.suspendProcessing();
+                const bool loaded = node->loadFactoryPreset(index);
+                m_engine.resumeProcessing();
+                if (!loaded) {
+                    QMessageBox::warning(this, "Plugin Preset", QString("The plugin could not load '%1'.").arg(name));
+                    return;
+                }
+                syncParameterControls();
+                setUnsavedChanges(true);
+                QTimer::singleShot(0, this, [this, node]() {
+                    if (m_parameterControlNode == node) showPluginControls(node);
+                });
+                QToolTip::showText(presetsButton->mapToGlobal(presetsButton->rect().center()),
+                                   QString("Loaded '%1'").arg(name), presetsButton);
+            } else if (loadChosen) {
                 const QString name = chosen->data().toString();
                 if (name.isEmpty()) return;
                 if (!loadPluginPreset(node, name)) {

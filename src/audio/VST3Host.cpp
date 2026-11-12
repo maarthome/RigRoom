@@ -10,6 +10,10 @@
 #include <QSocketNotifier>
 #include <fstream>
 #include <QLibrary>
+#include <QString>
+#include <cctype>
+#include <cstdlib>
+#include <iterator>
 
 #include "pluginterfaces/base/funknown.h"
 #include "pluginterfaces/base/ipluginbase.h"
@@ -18,6 +22,7 @@
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
 #include "pluginterfaces/vst/ivsthostapplication.h"
+#include "pluginterfaces/vst/ivstunits.h"
 #include "pluginterfaces/gui/iplugview.h"
 #include "pluginterfaces/base/ibstream.h"
 
@@ -35,6 +40,7 @@ namespace Vst {
     const FUID IHostApplication::iid(0x58E595CC, 0xDB2D4969, 0x8B6AAF8C, 0x36A664E5);
     const FUID IConnectionPoint::iid(0x70A4156F, 0x6E6E4026, 0x989148BF, 0xAA60D8D1);
     const FUID IComponentHandler::iid(0x93A0BEA3, 0x0BD045DB, 0x8E890B0C, 0xC1E46AC6);
+    const FUID IUnitInfo::iid(0x3D4BD6B5, 0x913A4FD2, 0xA886E768, 0xA5EB92C1);
 }
 const FUID IPlugView::iid(0x5BC32507, 0xD06049EA, 0xA6151B52, 0x2B755B29);
 const FUID IPlugFrame::iid(0x367FAF01, 0xAFA94693, 0x8D4DA2A0, 0xED0882A3);
@@ -616,6 +622,8 @@ VST3PluginNode::VST3PluginNode(const std::string& path) : m_path(path) {
     std::swap(cidCopy[4], cidCopy[5]);
     std::swap(cidCopy[6], cidCopy[7]);
     for (int i = 0; i < 16; ++i) sprintf(cidSwapped + i * 2, "%02X", cidCopy[i]);
+    m_classIdStraight = cidStraight;
+    m_classIdSwapped = cidSwapped;
 
     // Generate both straight and COM-swapped string representations for IID
     char iidStraight[33] = {0};
@@ -1169,6 +1177,13 @@ void VST3PluginNode::process(int numFrames) {
             m_lastParamValues[i] = val;
         }
     }
+    if (m_programChangePending.exchange(false)) {
+        int index = 0;
+        if (Steinberg::Vst::IParamValueQueue* queue = paramChanges->addParameterData(m_programChangeParam.load(), index)) {
+            int dummy;
+            queue->addPoint(0, m_programChangeValue.load(), dummy);
+        }
+    }
 
     int numInputs = getAudioInputCount();
     int numOutputs = getAudioOutputCount();
@@ -1388,4 +1403,250 @@ bool VST3PluginNode::restoreState(const std::string& blob) {
 
 bool VST3PluginNode::hasEditor() const {
     return m_controller != nullptr;
+}
+
+// --- Presets the plugin ships ------------------------------------------------
+// Two sources: the program list a plugin offers through IUnitInfo (selected
+// with its program-change parameter), and .vstpreset files in the standard
+// preset folders or inside the plugin bundle.
+
+namespace {
+std::string vst3String(const Steinberg::Vst::String128 text) {
+    return QString::fromUtf16(reinterpret_cast<const char16_t*>(text)).toStdString();
+}
+
+std::string upperAscii(std::string text) {
+    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    return text;
+}
+
+std::string lowerAscii(std::string text) {
+    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return text;
+}
+
+uint64_t readLittleEndian(const std::string& bytes, size_t pos, int width) {
+    uint64_t value = 0;
+    for (int b = 0; b < width; ++b) value |= static_cast<uint64_t>(static_cast<unsigned char>(bytes[pos + b])) << (8 * b);
+    return value;
+}
+
+// A .vstpreset: "VST3", version, 32-character class ID, offset of the chunk
+// list. The list holds "Comp" (component state) and "Cont" (controller state).
+struct VstPresetFile {
+    std::string classId;
+    std::string component;
+    std::string controller;
+};
+
+bool readVstPresetHeader(const std::string& path, std::string& classId) {
+    std::ifstream file(path, std::ios::binary);
+    char header[48] = {};
+    if (!file.read(header, sizeof(header))) return false;
+    if (std::memcmp(header, "VST3", 4) != 0) return false;
+    classId.assign(header + 8, 32);
+    return true;
+}
+
+bool readVstPreset(const std::string& path, VstPresetFile& preset) {
+    std::ifstream file(path, std::ios::binary);
+    const std::string bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    if (bytes.size() < 48 || bytes.compare(0, 4, "VST3") != 0) return false;
+    preset.classId = bytes.substr(8, 32);
+    const uint64_t listOffset = readLittleEndian(bytes, 40, 8);
+    if (listOffset + 8 > bytes.size() || bytes.compare(listOffset, 4, "List") != 0) return false;
+    const uint64_t count = readLittleEndian(bytes, listOffset + 4, 4);
+    size_t pos = listOffset + 8;
+    for (uint64_t i = 0; i < count && pos + 20 <= bytes.size(); ++i, pos += 20) {
+        const std::string id = bytes.substr(pos, 4);
+        const uint64_t offset = readLittleEndian(bytes, pos + 4, 8);
+        const uint64_t size = readLittleEndian(bytes, pos + 12, 8);
+        if (offset > bytes.size() || size > bytes.size() - offset) continue;
+        if (id == "Comp") preset.component = bytes.substr(offset, size);
+        else if (id == "Cont") preset.controller = bytes.substr(offset, size);
+    }
+    return !preset.component.empty();
+}
+
+void appendLength(std::string& out, uint32_t n) {
+    for (int b = 0; b < 4; ++b) out.push_back(static_cast<char>((n >> (8 * b)) & 0xff));
+}
+
+Steinberg::Vst::IUnitInfo* queryUnitInfo(Steinberg::FUnknown* controller) {
+    Steinberg::Vst::IUnitInfo* unitInfo = nullptr;
+    if (controller->queryInterface(Steinberg::Vst::IUnitInfo::iid, (void**)&unitInfo) == Steinberg::kResultOk && unitInfo)
+        return unitInfo;
+    unsigned char swapped[16];
+    std::memcpy(swapped, Steinberg::Vst::IUnitInfo::iid.toTUID(), 16);
+    std::swap(swapped[0], swapped[3]);
+    std::swap(swapped[1], swapped[2]);
+    std::swap(swapped[4], swapped[5]);
+    std::swap(swapped[6], swapped[7]);
+    unitInfo = nullptr;
+    if (controller->queryInterface(reinterpret_cast<const char*>(swapped), (void**)&unitInfo) == Steinberg::kResultOk && unitInfo)
+        return unitInfo;
+    return nullptr;
+}
+} // namespace
+
+std::vector<AudioNode::FactoryPreset> VST3PluginNode::getFactoryPresets() {
+    m_presetRefs.clear();
+    std::vector<FactoryPreset> result;
+    if (!m_component) return result;
+
+    // 1. Programs, chosen with the program-change parameter.
+    if (m_controller) {
+        auto* controller = (Steinberg::Vst::IEditController*)m_controller;
+        bool haveProgramParam = false;
+        Steinberg::Vst::ParameterInfo programParam{};
+        const int paramCount = controller->getParameterCount();
+        for (int i = 0; i < paramCount; ++i) {
+            Steinberg::Vst::ParameterInfo info{};
+            if (controller->getParameterInfo(i, info) != Steinberg::kResultOk) continue;
+            if (info.flags & Steinberg::Vst::ParameterInfo::kIsProgramChange) {
+                programParam = info;
+                haveProgramParam = true;
+                break;
+            }
+        }
+
+        if (haveProgramParam) {
+            std::vector<std::string> names;
+            std::string listName;
+            if (Steinberg::Vst::IUnitInfo* unitInfo = queryUnitInfo((Steinberg::FUnknown*)m_controller)) {
+                Steinberg::Vst::ProgramListID listId = Steinberg::Vst::kNoProgramListId;
+                for (int u = 0; u < unitInfo->getUnitCount(); ++u) {
+                    Steinberg::Vst::UnitInfo unit{};
+                    if (unitInfo->getUnitInfo(u, unit) == Steinberg::kResultOk && unit.id == programParam.unitId) {
+                        listId = unit.programListId;
+                        break;
+                    }
+                }
+                for (int l = 0; l < unitInfo->getProgramListCount(); ++l) {
+                    Steinberg::Vst::ProgramListInfo list{};
+                    if (unitInfo->getProgramListInfo(l, list) != Steinberg::kResultOk) continue;
+                    // Without a unit link, take the first list.
+                    if (listId != Steinberg::Vst::kNoProgramListId && list.id != listId) continue;
+                    listName = vst3String(list.name);
+                    for (int p = 0; p < list.programCount; ++p) {
+                        Steinberg::Vst::String128 name{};
+                        names.push_back(unitInfo->getProgramName(list.id, p, name) == Steinberg::kResultOk
+                            ? vst3String(name) : "Program " + std::to_string(p + 1));
+                    }
+                    break;
+                }
+                unitInfo->release();
+            }
+            // No program list: the parameter's own value names are the programs.
+            if (names.empty() && programParam.stepCount > 0) {
+                for (int p = 0; p <= programParam.stepCount; ++p) {
+                    Steinberg::Vst::String128 name{};
+                    const double normalized = static_cast<double>(p) / programParam.stepCount;
+                    names.push_back(controller->getParamStringByValue(programParam.id, normalized, name) == Steinberg::kResultOk
+                        ? vst3String(name) : "Program " + std::to_string(p + 1));
+                }
+            }
+            const size_t count = names.size();
+            for (size_t p = 0; p < count; ++p) {
+                PresetRef ref;
+                ref.isProgram = true;
+                ref.paramId = programParam.id;
+                ref.normalized = count > 1 ? static_cast<double>(p) / static_cast<double>(count - 1) : 0.0;
+                m_presetRefs.push_back(ref);
+                result.push_back({names[p].empty() ? "Program " + std::to_string(p + 1) : names[p],
+                                  listName.empty() ? "Programs" : listName});
+            }
+        }
+    }
+
+    // 2. .vstpreset files whose class ID is this plugin's.
+    namespace fs = std::filesystem;
+    std::vector<fs::path> roots;
+    if (const char* home = std::getenv("HOME")) roots.emplace_back(fs::path(home) / ".vst3" / "presets");
+    roots.emplace_back("/usr/share/vst3/presets");
+    roots.emplace_back("/usr/local/share/vst3/presets");
+
+    std::vector<fs::path> folders;
+    const std::string wantedName = lowerAscii(m_name);
+    std::error_code ec;
+    for (const fs::path& root : roots) {
+        if (!fs::is_directory(root, ec)) continue;
+        // <root>/<vendor>/<plugin name>/; vendor and name spelling vary, so
+        // look at every vendor folder for a matching plugin folder.
+        for (const auto& vendorDir : fs::directory_iterator(root, ec)) {
+            if (!vendorDir.is_directory(ec)) continue;
+            for (const auto& pluginDir : fs::directory_iterator(vendorDir.path(), ec)) {
+                if (pluginDir.is_directory(ec) && lowerAscii(pluginDir.path().filename().string()) == wantedName)
+                    folders.push_back(pluginDir.path());
+            }
+        }
+    }
+    const fs::path bundle(m_path);
+    if (fs::is_directory(bundle / "Contents" / "Resources", ec)) folders.push_back(bundle / "Contents" / "Resources");
+
+    const std::string straight = upperAscii(m_classIdStraight);
+    const std::string swapped = upperAscii(m_classIdSwapped);
+    struct FileEntry { FactoryPreset preset; std::string path; };
+    std::vector<FileEntry> files;
+    size_t scanned = 0;
+    for (const fs::path& folder : folders) {
+        for (auto it = fs::recursive_directory_iterator(folder, fs::directory_options::skip_permission_denied, ec);
+             it != fs::recursive_directory_iterator() && scanned < 5000; it.increment(ec)) {
+            if (ec) break;
+            if (!it->is_regular_file(ec) || lowerAscii(it->path().extension().string()) != ".vstpreset") continue;
+            ++scanned;
+            std::string classId;
+            if (!readVstPresetHeader(it->path().string(), classId)) continue;
+            classId = upperAscii(classId);
+            if (!straight.empty() && classId != straight && classId != swapped) continue;
+            FileEntry entry;
+            entry.path = it->path().string();
+            entry.preset.name = it->path().stem().string();
+            const fs::path relative = it->path().parent_path().lexically_relative(folder);
+            entry.preset.bank = (relative.empty() || relative == ".") ? std::string("Preset Files") : relative.string();
+            files.push_back(std::move(entry));
+        }
+    }
+    std::sort(files.begin(), files.end(), [](const FileEntry& a, const FileEntry& b) {
+        if (a.preset.bank != b.preset.bank) return a.preset.bank < b.preset.bank;
+        return a.preset.name < b.preset.name;
+    });
+    for (auto& entry : files) {
+        PresetRef ref;
+        ref.path = entry.path;
+        m_presetRefs.push_back(ref);
+        result.push_back(entry.preset);
+    }
+    return result;
+}
+
+bool VST3PluginNode::loadFactoryPreset(size_t index) {
+    if (index >= m_presetRefs.size() || !m_component) return false;
+    const PresetRef ref = m_presetRefs[index];
+
+    if (ref.isProgram) {
+        if (!m_controller) return false;
+        auto* controller = (Steinberg::Vst::IEditController*)m_controller;
+        // The controller switches its parameters to the program; the
+        // processor gets the same program change with the next block.
+        controller->setParamNormalized(ref.paramId, ref.normalized);
+        m_programChangeParam.store(ref.paramId);
+        m_programChangeValue.store(ref.normalized);
+        m_programChangePending.store(true);
+        readParamsFromController();
+        markStateDirty();
+        return true;
+    }
+
+    VstPresetFile file;
+    if (!readVstPreset(ref.path, file)) {
+        std::cerr << "VST3Host: could not read preset file " << ref.path << std::endl;
+        return false;
+    }
+    std::string blob = "VST3S1";
+    appendLength(blob, static_cast<uint32_t>(file.component.size()));
+    blob += file.component;
+    appendLength(blob, static_cast<uint32_t>(file.controller.size()));
+    blob += file.controller;
+    return restoreState(blob);
 }

@@ -41,6 +41,9 @@ public:
     void setResizeCallback(std::function<void(uint32_t, uint32_t)> cb) { m_resizeCallback = cb; }
     void requestResize(uint32_t width, uint32_t height) { if (m_resizeCallback) m_resizeCallback(width, height); }
 
+    std::vector<FactoryPreset> getFactoryPresets() override;
+    bool loadFactoryPreset(size_t index) override;
+
     static std::vector<CLAPPluginDescriptor> scanLibrary(const std::string& path);
     static std::vector<CLAPPluginDescriptor> scanStandardPaths(const std::vector<std::string>& customPaths = {});
     // .clap files in the standard and custom folders (no loading).
@@ -54,6 +57,19 @@ private:
     std::string m_path;
     uint32_t m_pluginIndex = 0;
     void* m_libHandle = nullptr;
+    const clap_plugin_entry_t* m_entry = nullptr;
+    std::string m_pluginId;
+
+    // One entry of the last getFactoryPresets() list, as the plugin's
+    // preset-load extension wants it.
+    struct PresetRef {
+        uint32_t kind = 0;
+        std::string location;
+        std::string loadKey;
+        bool hasLoadKey = false;
+    };
+    std::vector<PresetRef> m_presetRefs;
+    void readParamValuesFromPlugin();
 
     clap_host_t m_host{};
     const clap_plugin_t* m_plugin = nullptr;
