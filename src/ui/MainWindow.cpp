@@ -923,8 +923,8 @@ void MainWindow::setupUI() {
         "double-tapping a block opens its parameters on a page of their own; BACK returns to the board. "
         "With <i>Below the board</i>, the parameters sit under the board as before.<br><br>"
         "<b>Parameter knobs per row</b>: how many knobs sit side by side on a plugin's parameter page.<br><br>"
-        "<b>Plugins per row</b>: how many plugin blocks sit on one row of the signal chain before it continues "
-        "on the next row.<br><br>"
+        "<b>Columns per row</b>: how many columns (plugin slots, as counted by Columns in the board's corner) "
+        "sit on one row of the signal chain before it continues on the next row.<br><br>"
         "Text size, screen scale and the sizes of the bank/presets/scenes, top toolbar and corner "
         "controls take effect the next time RigRoom starts.");
     guiBox->setStyleSheet(UiScale::css(SettingsUi::kGroupStyle));
@@ -955,17 +955,24 @@ void MainWindow::setupUI() {
     // The board settings come first: they are the ones most looked for.
     guiForm->insertRow(0, "Signal Chain:", chainLayoutCombo);
 
-    QSpinBox* perLineSpin = new QSpinBox(m_settingsDialog);
-    perLineSpin->setRange(0, NodeCanvas::MAX_COLS);
-    perLineSpin->setSpecialValueText("Auto (fit the width)");
-    perLineSpin->setValue(std::clamp(QSettings("RigRoom", "RigRoom").value("gui_snake_columns", 0).toInt(), 0, NodeCanvas::MAX_COLS));
-    perLineSpin->setToolTip("How many plugin blocks sit on one row before the chain continues on the next; "
-                            "blocks shrink if that many do not fit the screen");
-    connect(perLineSpin, &QSpinBox::valueChanged, this, [this](int count) {
-        QSettings("RigRoom", "RigRoom").setValue("gui_snake_columns", count);
-        if (m_canvas) m_canvas->setSnakeColumns(count);
+    // Columns per row: picked from a list, so a touchscreen needs no typing.
+    QComboBox* perLineCombo = new QComboBox(m_settingsDialog);
+    perLineCombo->addItem("Auto (fit the width)", 0);
+    for (int columns = 1; columns <= NodeCanvas::MAX_COLS; ++columns) perLineCombo->addItem(QString::number(columns), columns);
+    {
+        const int saved = std::clamp(QSettings("RigRoom", "RigRoom").value("gui_snake_columns", 0).toInt(), 0, NodeCanvas::MAX_COLS);
+        perLineCombo->setCurrentIndex(std::max(0, perLineCombo->findData(saved)));
+    }
+    perLineCombo->setToolTip("How many columns (plugin slots) sit on one row of the signal chain before it continues "
+                             "on the next; blocks shrink if that many do not fit the screen");
+    connect(perLineCombo, &QComboBox::currentIndexChanged, this, [this, perLineCombo](int index) {
+        const int columns = perLineCombo->itemData(index).toInt();
+        QSettings settings("RigRoom", "RigRoom");
+        settings.setValue("gui_snake_columns", columns);
+        settings.sync();
+        if (m_canvas) m_canvas->setSnakeColumns(columns);
     });
-    guiForm->insertRow(1, "Plugins per Row:", perLineSpin);
+    guiForm->insertRow(1, "Columns per Row:", perLineCombo);
 
     QSpinBox* blockSizeSpin = new QSpinBox(m_settingsDialog);
     blockSizeSpin->setRange(50, 200);

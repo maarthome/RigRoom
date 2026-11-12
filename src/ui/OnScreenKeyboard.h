@@ -92,6 +92,9 @@ public:
         // is on, and tapping a key would take it away from the field.
         if (QWidget* window = field->window()) window->activateWindow();
         field->setFocus(Qt::OtherFocusReason);
+        // A number is typed anew: select it so the first key replaces it
+        // (also a special text such as "Auto").
+        if (auto* spin = qobject_cast<QAbstractSpinBox*>(field)) spin->selectAll();
         keepFieldVisible();
     }
 
