@@ -80,6 +80,13 @@ public:
         if (!field) return;
         if (field != m_field) restoreWindow();
         m_field = field;
+        // Belong to the field's window: a modal dialog (e.g. the one for typing
+        // a parameter value) blocks taps on every other window, the keyboard
+        // included, unless the keyboard is its child.
+        if (QWidget* host = field->window(); host && host != this && parentWidget() != host) {
+            const Qt::WindowFlags flags = windowFlags();
+            setParent(host, flags);
+        }
         QScreen* screen = field->screen() ? field->screen() : QGuiApplication::primaryScreen();
         if (!screen) return;
         const QRect area = screen->availableGeometry();

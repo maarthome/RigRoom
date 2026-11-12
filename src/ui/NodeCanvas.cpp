@@ -1088,9 +1088,14 @@ void NodeCanvas::updateLayout() {
         // A chosen number of blocks per row: the blocks are as large as the
         // board allows, filling its width or (with many rows) its height,
         // leaving the bottom row of controls free.
-        const qreal lineW = m_bandColumns > 0
-            ? m_rowLeft + m_bandColumnsRest * CanvasMetrics::columnPitch + MARGIN_X + 8.0
-            : m_trackBase + m_numCols * CanvasMetrics::columnPitch + CanvasMetrics::clearGap + outputW + MARGIN_X + 8.0;
+        qreal lineW = m_trackBase + m_numCols * CanvasMetrics::columnPitch + CanvasMetrics::clearGap + outputW + MARGIN_X + 8.0;
+        if (m_bandColumns > 0) {
+            // As wide as the scene will be (see the end of this function).
+            qreal right = 0.0;
+            for (int b = 0; b < m_bandCount; ++b)
+                right = std::max(right, bandLeftX(b) + bandColumnsOf(b) * CanvasMetrics::columnPitch);
+            lineW = right + 16.0 + MARGIN_X / 2.0 + 8.0;
+        }
         const qreal boardH = H * m_bandCount + 8.0;
         const int controls = (m_zoomOverlay && m_zoomOverlay->isVisible())
             ? m_zoomOverlay->height() + 24
@@ -1194,9 +1199,14 @@ void NodeCanvas::updateLayout() {
     }
 
     if (m_bandColumns > 0) {
-        const qreal snakeW = m_trackBase + m_bandColumns * CanvasMetrics::columnPitch
-                           + CanvasMetrics::clearGap + outputW + MARGIN_X;
-        m_scene->setSceneRect(QRectF(0, 0, snakeW, H * m_bandCount).united(m_scene->itemsBoundingRect()));
+        // Exactly the rows' width (plus the wire turning at their ends): a
+        // wider scene would be centred and cut off at the left, since the
+        // wrapped layout has no horizontal scroll bar.
+        qreal right = 0.0;
+        for (int b = 0; b < m_bandCount; ++b)
+            right = std::max(right, bandLeftX(b) + bandColumnsOf(b) * CanvasMetrics::columnPitch);
+        const qreal snakeW = right + 16.0 + MARGIN_X / 2.0;
+        m_scene->setSceneRect(QRectF(0, 0, snakeW, H * m_bandCount));
     } else if (fitsInViewport) {
         m_scene->setSceneRect(0, 0, W, H);
     } else {

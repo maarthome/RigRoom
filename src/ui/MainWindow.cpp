@@ -2646,7 +2646,8 @@ void MainWindow::onNodeContextMenuRequested(int row, int col, QPoint screenPos) 
     QAction* removeAct = menu.addAction("Remove Effect");
     QAction* replaceAct = menu.addAction("Replace Effect");
     
-    QAction* selected = menu.exec(screenPos);
+    // Open to the left of the finger, so the hand does not cover the menu.
+    QAction* selected = menu.exec(QPoint(std::max(0, screenPos.x() - menu.sizeHint().width()), screenPos.y()));
     if (!selected) return;
     
     if (selected == midiLearnAct) {
