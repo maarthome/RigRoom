@@ -41,6 +41,29 @@ inline int boundedHeight(int wanted, const QWidget* widget = nullptr) {
     return area.isValid() ? qMin(wanted, area.height()) : wanted;
 }
 
+// The usable screen area in device pixels, the unit plugin GUIs work in
+// (Qt's interface scale does not apply to them).
+inline QSize physicalArea(const QWidget* widget = nullptr) {
+    QScreen* screen = widget ? widget->screen() : nullptr;
+    if (!screen) screen = QGuiApplication::primaryScreen();
+    if (!screen) return QSize();
+    const QRect area = screen->availableGeometry();
+    const qreal ratio = screen->devicePixelRatio() > 0.0 ? screen->devicePixelRatio() : 1.0;
+    return QSize(qRound(area.width() * ratio), qRound(area.height() * ratio));
+}
+
+// How much a plugin view of the given device-pixel size must shrink to fit
+// the screen: 1.0 when it already fits.
+inline double shrinkToFit(int width, int height, const QWidget* widget = nullptr) {
+    const QSize room = physicalArea(widget);
+    if (!room.isValid() || width <= 0 || height <= 0) return 1.0;
+    return qMin(1.0, qMin(room.width() / double(width), room.height() / double(height)));
+}
+
+inline bool fitsScreen(int width, int height, const QWidget* widget = nullptr) {
+    return shrinkToFit(width, height, widget) >= 1.0;
+}
+
 // Shrink a top-level window that is larger than the screen and move it so it
 // lies fully on the screen.
 inline void fitWindow(QWidget* window) {

@@ -88,6 +88,13 @@ struct Helper {
     using GtkWidgetAction = void (*)(void*);
     using GtkWidgetGetWindow = void* (*)(void*);
     using SignalConnectData = unsigned long (*)(void*, const char*, void (*)(), void*, void (*)(void*, void*), int);
+    // For UIs larger than the screen: a scrolled window around the plugin.
+    struct GtkRequisitionData { int width; int height; };
+    using GtkWidgetSizeRequest = void (*)(void*, GtkRequisitionData*);
+    using GtkScrolledWindowNew = void* (*)(void*, void*);
+    using GtkScrolledWindowSetPolicy = void (*)(void*, int, int);
+    using GtkScrolledWindowAddWithViewport = void (*)(void*, void*);
+    using GtkWindowSetDefaultSize = void (*)(void*, int, int);
 
     Helper(const char* gtkLibrary, const char* containerType, const char* uiType, QString titlePrefix)
         : gtk(gtkLibrary), containerType(containerType), uiType(uiType), titlePrefix(std::move(titlePrefix)) {}
@@ -203,7 +210,36 @@ struct Helper {
         const QByteArray title = (titlePrefix + " - " + pluginUri).toUtf8();
         setTitle(window, title.constData());
         setKeepAbove(window, 1);
-        containerAdd(window, pluginWidget);
+        // A UI larger than the screen (a small touchscreen) scrolls inside a
+        // window that fits; anything else is added as it is.
+        bool scrolled = false;
+        {
+            auto sizeRequest = reinterpret_cast<GtkWidgetSizeRequest>(gtk.resolve("gtk_widget_size_request"));
+            auto scrolledNew = reinterpret_cast<GtkScrolledWindowNew>(gtk.resolve("gtk_scrolled_window_new"));
+            auto setPolicy = reinterpret_cast<GtkScrolledWindowSetPolicy>(gtk.resolve("gtk_scrolled_window_set_policy"));
+            auto addWithViewport = reinterpret_cast<GtkScrolledWindowAddWithViewport>(gtk.resolve("gtk_scrolled_window_add_with_viewport"));
+            auto setDefaultSize = reinterpret_cast<GtkWindowSetDefaultSize>(gtk.resolve("gtk_window_set_default_size"));
+            int screenWidth = 0, screenHeight = 0;
+            if (Display* display = XOpenDisplay(nullptr)) {
+                screenWidth = DisplayWidth(display, DefaultScreen(display));
+                screenHeight = DisplayHeight(display, DefaultScreen(display));
+                XCloseDisplay(display);
+            }
+            GtkRequisitionData wanted{0, 0};
+            if (sizeRequest) sizeRequest(pluginWidget, &wanted);
+            if (sizeRequest && scrolledNew && setPolicy && addWithViewport && setDefaultSize &&
+                screenWidth > 0 && screenHeight > 0 &&
+                (wanted.width > screenWidth || wanted.height > screenHeight)) {
+                void* scrolledWindow = scrolledNew(nullptr, nullptr);
+                constexpr int kPolicyAutomatic = 1; // GTK_POLICY_AUTOMATIC
+                setPolicy(scrolledWindow, kPolicyAutomatic, kPolicyAutomatic);
+                addWithViewport(scrolledWindow, pluginWidget);
+                containerAdd(window, scrolledWindow);
+                setDefaultSize(window, qMin(wanted.width, screenWidth), qMin(wanted.height, screenHeight));
+                scrolled = true;
+            }
+        }
+        if (!scrolled) containerAdd(window, pluginWidget);
         connectSignal(window, "delete-event", reinterpret_cast<void (*)()>(&Helper::closeWindow),
                        this, nullptr, 0);
         showAll(window);
@@ -399,8 +435,32 @@ struct X11Helper {
         XWindowAttributes attributes{};
         if (!child || !XGetWindowAttributes(display, child, &attributes)) return false;
         XReparentWindow(display, child, window, 0, 0);
-        const int width = requestedWidth > 0 ? requestedWidth : attributes.width;
-        const int height = requestedHeight > 0 ? requestedHeight : attributes.height;
+        int width = requestedWidth > 0 ? requestedWidth : attributes.width;
+        int height = requestedHeight > 0 ? requestedHeight : attributes.height;
+        int childWidth = width;
+        int childHeight = height;
+        // Larger than the screen (a small touchscreen): a resizable UI is
+        // asked to take a size that fits; a fixed one keeps its size and the
+        // window shows as much of it as the screen holds.
+        {
+            const int screenWidth = DisplayWidth(display, screen);
+            const int screenHeight = DisplayHeight(display, screen);
+            if (screenWidth > 0 && screenHeight > 0 && (width > screenWidth || height > screenHeight)) {
+                const auto* uiResize = static_cast<const LV2UI_Resize*>(
+                    suil_instance_extension_data(instance, LV2_UI__resize));
+                if (uiResize && uiResize->ui_resize) {
+                    const double fit = qMin(screenWidth / double(width), screenHeight / double(height));
+                    width = qMax(1, int(width * fit));
+                    height = qMax(1, int(height * fit));
+                    uiResize->ui_resize(suil_instance_get_handle(instance), width, height);
+                    childWidth = width;
+                    childHeight = height;
+                } else {
+                    width = qMin(width, screenWidth);
+                    height = qMin(height, screenHeight);
+                }
+            }
+        }
         XSizeHints sizeHints{};
         sizeHints.flags = PMinSize | PAspect;
         sizeHints.min_width = 1;
@@ -411,7 +471,7 @@ struct X11Helper {
         sizeHints.max_aspect.y = height;
         XSetWMNormalHints(display, window, &sizeHints);
         XResizeWindow(display, window, width, height);
-        XMoveResizeWindow(display, child, 0, 0, width, height);
+        XMoveResizeWindow(display, child, 0, 0, childWidth, childHeight);
         XMapWindow(display, child);
         XMapRaised(display, window);
         XFlush(display);

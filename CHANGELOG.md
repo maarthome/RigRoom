@@ -15,6 +15,7 @@
 - Drop-down lists and selection lists use the dark theme instead of a near-white background.
 - On small screens, such as a Raspberry Pi touchscreen, the main window fills the screen and scrolls when its controls need more room, Settings tabs scroll, and dialogs are kept on screen.
 - The whole interface scales to fit small screens automatically. Settings > Screen Scale can set it by hand (40% to 200%); it applies the next time RigRoom starts.
+- Plugin windows larger than the screen are fitted to it: RigRoom asks VST3 and CLAP plugins to draw at a smaller scale, resizes plugins that allow it, and lets fixed-size plugin windows scroll.
 
 ## 0.13.0 - 2026-10-01
 

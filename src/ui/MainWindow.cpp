@@ -5395,13 +5395,54 @@ public:
             m_nativeHeight = 600;
         }
 
+        // Too big for the screen (a small touchscreen): first ask the plugin
+        // to draw itself smaller, which most JUCE-based plugins do.
+        const double shrink = ScreenFit::shrinkToFit(m_nativeWidth, m_nativeHeight, this);
+        if (m_plugView && shrink < 1.0) {
+            Steinberg::IPlugViewContentScaleSupport* scaleSupport = nullptr;
+            if (m_plugView->queryInterface(Steinberg::IPlugViewContentScaleSupport::iid, (void**)&scaleSupport) != Steinberg::kResultOk) {
+                scaleSupport = nullptr;
+                unsigned char swapped[16];
+                std::memcpy(swapped, Steinberg::IPlugViewContentScaleSupport::iid.toTUID(), 16);
+                std::swap(swapped[0], swapped[3]);
+                std::swap(swapped[1], swapped[2]);
+                std::swap(swapped[4], swapped[5]);
+                std::swap(swapped[6], swapped[7]);
+                if (m_plugView->queryInterface(reinterpret_cast<const char*>(swapped), (void**)&scaleSupport) != Steinberg::kResultOk)
+                    scaleSupport = nullptr;
+            }
+            if (scaleSupport) {
+                if (scaleSupport->setContentScaleFactor(static_cast<Steinberg::IPlugViewContentScaleSupport::ScaleFactor>(shrink)) == Steinberg::kResultOk &&
+                    m_plugView->getSize(&size) == Steinberg::kResultOk) {
+                    m_nativeWidth = size.right - size.left;
+                    m_nativeHeight = size.bottom - size.top;
+                }
+                scaleSupport->release();
+            }
+        }
+
+        m_resizable = (m_plugView && m_plugView->canResize() == Steinberg::kResultOk);
+        // Still too big but resizable: ask for a size that fits.
+        if (m_plugView && m_resizable && !ScreenFit::fitsScreen(m_nativeWidth, m_nativeHeight, this)) {
+            const double fit = ScreenFit::shrinkToFit(m_nativeWidth, m_nativeHeight, this);
+            Steinberg::ViewRect wanted(0, 0, static_cast<Steinberg::int32>(m_nativeWidth * fit),
+                                       static_cast<Steinberg::int32>(m_nativeHeight * fit));
+            if (m_plugView->checkSizeConstraint(&wanted) == Steinberg::kResultOk) {
+                m_nativeWidth = wanted.right - wanted.left;
+                m_nativeHeight = wanted.bottom - wanted.top;
+            }
+        }
+        // A plugin that can do neither scrolls inside its window.
+        m_scrolls = !ScreenFit::fitsScreen(m_nativeWidth, m_nativeHeight, this);
+
         double ratio = devicePixelRatioF();
         if (ratio <= 0.0) ratio = 1.0;
         int logicalW = std::round(m_nativeWidth / ratio);
         int logicalH = std::round(m_nativeHeight / ratio);
         
-        m_resizable = (m_plugView && m_plugView->canResize() == Steinberg::kResultOk);
-        if (m_resizable) {
+        if (m_scrolls) {
+            resize(ScreenFit::bounded(QSize(logicalW, logicalH), this));
+        } else if (m_resizable) {
             resize(logicalW, logicalH);
         } else {
             setFixedSize(logicalW, logicalH);
@@ -5427,7 +5468,12 @@ public:
         // Wrap raw X11 container into Qt's createWindowContainer to prevent backing store overpaint
         QWindow* foreignWin = QWindow::fromWinId(m_x11Container);
         m_containerWidget = QWidget::createWindowContainer(foreignWin, this);
-        layout->addWidget(m_containerWidget);
+        if (m_scrolls) {
+            m_containerWidget->setFixedSize(logicalW, logicalH);
+            layout->addWidget(ScreenFit::scrollable(m_containerWidget, this));
+        } else {
+            layout->addWidget(m_containerWidget);
+        }
 
         // Mirror parameter changes made in RigRoom (controls, MIDI, scenes,
         // presets) into the plugin GUI, like the LV2 UI port sync.
@@ -5468,7 +5514,9 @@ public:
 protected:
     void resizeEvent(QResizeEvent* event) override {
         QDialog::resizeEvent(event);
-        if (m_plugView && m_attached) {
+        // When scrolling, the window is a viewport onto the plugin, which
+        // keeps its own size.
+        if (m_plugView && m_attached && !m_scrolls) {
             double ratio = devicePixelRatioF();
             if (ratio <= 0.0) ratio = 1.0;
             
@@ -5575,6 +5623,7 @@ private:
     Steinberg::IPlugView* m_plugView;
     bool m_attached;
     bool m_resizable;
+    bool m_scrolls = false;
     int m_nativeWidth;
     int m_nativeHeight;
     Window m_x11Container;
@@ -5640,18 +5689,37 @@ public:
                 if (extGui->get_size) {
                     extGui->get_size(plugin, &width, &height);
                 }
+                // Too big for the screen (a small touchscreen): ask the plugin
+                // to draw itself smaller, then to take a size that fits.
+                const double shrink = ScreenFit::shrinkToFit(int(width), int(height), this);
+                if (shrink < 1.0 && extGui->set_scale && extGui->set_scale(plugin, shrink) && extGui->get_size) {
+                    extGui->get_size(plugin, &width, &height);
+                }
+                if (!ScreenFit::fitsScreen(int(width), int(height), this) &&
+                    extGui->can_resize && extGui->can_resize(plugin) && extGui->set_size) {
+                    const double fit = ScreenFit::shrinkToFit(int(width), int(height), this);
+                    uint32_t fitWidth = static_cast<uint32_t>(width * fit);
+                    uint32_t fitHeight = static_cast<uint32_t>(height * fit);
+                    if (extGui->adjust_size) extGui->adjust_size(plugin, &fitWidth, &fitHeight);
+                    if (fitWidth > 0 && fitHeight > 0 && extGui->set_size(plugin, fitWidth, fitHeight)) {
+                        width = fitWidth;
+                        height = fitHeight;
+                    }
+                }
             }
         }
 
         m_nativeWidth = (width > 0) ? width : 800;
         m_nativeHeight = (height > 0) ? height : 600;
+        // A plugin that can do neither scrolls inside its window.
+        m_scrolls = !ScreenFit::fitsScreen(int(m_nativeWidth), int(m_nativeHeight), this);
 
         double ratio = devicePixelRatioF();
         if (ratio <= 0.0) ratio = 1.0;
         int logicalW = std::round(m_nativeWidth / ratio);
         int logicalH = std::round(m_nativeHeight / ratio);
         
-        resize(logicalW, logicalH);
+        resize(ScreenFit::bounded(QSize(logicalW, logicalH), this));
 
         WId dialogWinId = this->winId();
         int screen = DefaultScreen(m_dpy);
@@ -5671,7 +5739,12 @@ public:
 
         QWindow* foreignWin = QWindow::fromWinId(m_x11Container);
         m_containerWidget = QWidget::createWindowContainer(foreignWin, this);
-        layout->addWidget(m_containerWidget);
+        if (m_scrolls) {
+            m_containerWidget->setFixedSize(logicalW, logicalH);
+            layout->addWidget(ScreenFit::scrollable(m_containerWidget, this));
+        } else {
+            layout->addWidget(m_containerWidget);
+        }
 
         m_node->setResizeCallback([this](uint32_t w, uint32_t h) {
             QMetaObject::invokeMethod(this, [this, w, h]() {
@@ -5683,8 +5756,9 @@ public:
                 int logicalW = std::round(m_nativeWidth / ratio);
                 int logicalH = std::round(m_nativeHeight / ratio);
                 setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
-                setMinimumSize(300, 200);
-                resize(logicalW, logicalH);
+                setMinimumSize(ScreenFit::bounded(QSize(300, 200), this));
+                if (m_scrolls) m_containerWidget->setFixedSize(logicalW, logicalH);
+                resize(ScreenFit::bounded(QSize(logicalW, logicalH), this));
                 updateChildWindows(m_nativeWidth, m_nativeHeight);
             }, Qt::QueuedConnection);
         });
@@ -5745,8 +5819,8 @@ protected:
                     if (ratio <= 0.0) ratio = 1.0;
                     int logicalW = std::round(m_nativeWidth / ratio);
                     int logicalH = std::round(m_nativeHeight / ratio);
-                    setMinimumSize(300, 200);
-                    resize(logicalW, logicalH);
+                    setMinimumSize(ScreenFit::bounded(QSize(300, 200), this));
+                    resize(ScreenFit::bounded(QSize(logicalW, logicalH), this));
                     updateChildWindows(m_nativeWidth, m_nativeHeight);
                 }
             }
@@ -5755,7 +5829,9 @@ protected:
 
     void resizeEvent(QResizeEvent* event) override {
         QDialog::resizeEvent(event);
-        if (m_containerWidget && m_dpy && m_x11Container) {
+        // When scrolling, the window is a viewport onto the plugin, which
+        // keeps its own size.
+        if (m_containerWidget && m_dpy && m_x11Container && !m_scrolls) {
             double ratio = devicePixelRatioF();
             if (ratio <= 0.0) ratio = 1.0;
             uint32_t physW = std::round(width() * ratio);
@@ -5782,6 +5858,7 @@ private:
     QWidget* m_containerWidget = nullptr;
     bool m_ownsDisplay = false;
     bool m_attached = false;
+    bool m_scrolls = false;
     uint32_t m_nativeWidth = 800;
     uint32_t m_nativeHeight = 600;
 };
@@ -5942,16 +6019,29 @@ public:
                     nativeSize = QSize(640, 480);
                 }
 
-                layout->addWidget(widget);
+                // A fixed-size UI larger than the screen (a small touchscreen)
+                // scrolls inside the window; a resizable one is resized to fit.
+                const QRect area = ScreenFit::availableArea(this);
+                m_scrolls = !supportsResize && area.isValid() &&
+                            (nativeSize.width() > area.width() || nativeSize.height() > area.height());
+                if (m_scrolls) {
+                    layout->addWidget(ScreenFit::scrollable(widget, this));
+                } else {
+                    layout->addWidget(widget);
+                }
                 widget->show();
                 m_uiWidget = widget;
                 QTimer::singleShot(0, this, [this, widget, nativeSize]() {
-                    widget->setMinimumSize(1, 1);
-                    widget->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
-                    widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+                    if (m_scrolls) {
+                        widget->setFixedSize(nativeSize);
+                    } else {
+                        widget->setMinimumSize(1, 1);
+                        widget->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+                        widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+                    }
                     setMinimumSize(100, 100);
                     setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
-                    resize(nativeSize);
+                    resize(ScreenFit::bounded(nativeSize, this));
                 });
                 for (const auto& param : m_node->getControlPorts()) {
                     if (!param.isOutput) {
@@ -6015,9 +6105,10 @@ public:
             int logicalH = std::round(height / ratio);
             setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
             setMinimumSize(100, 100);
-            resize(logicalW, logicalH);
+            resize(ScreenFit::bounded(QSize(logicalW, logicalH), this));
             if (m_uiWidget) {
-                m_uiWidget->resize(logicalW, logicalH);
+                if (m_scrolls) m_uiWidget->setFixedSize(logicalW, logicalH);
+                else m_uiWidget->resize(logicalW, logicalH);
             }
         }, Qt::QueuedConnection);
     }
@@ -6025,6 +6116,9 @@ public:
 protected:
     void resizeEvent(QResizeEvent* event) override {
         QDialog::resizeEvent(event);
+        // When scrolling, the window is a viewport onto the UI, which keeps
+        // its own size.
+        if (m_scrolls) return;
         if (m_uiWidget) {
             m_uiWidget->resize(width(), height());
         }
@@ -6056,6 +6150,7 @@ private:
     }
 
     LV2PluginNode* m_node;
+    bool m_scrolls = false;
     SuilHost* m_suilHost = nullptr;
     SuilInstance* m_suilInstance = nullptr;
     LV2_URID_Map m_uridMap{};
