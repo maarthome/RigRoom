@@ -13,6 +13,7 @@
 - A plugin's saved presets are listed under Plugin Presets > Load Saved, so one click loads them.
 - Plugin Presets > Plugin's Own Presets lists the presets a plugin ships and loads them: LV2 presets, VST3 programs and .vstpreset files, and CLAP presets found through preset discovery.
 - Drop-down lists and selection lists use the dark theme instead of a near-white background.
+- On small screens, such as a Raspberry Pi touchscreen, the main window fills the screen and scrolls when its controls need more room, Settings tabs scroll, and dialogs are kept on screen.
 
 ## 0.13.0 - 2026-10-01
 

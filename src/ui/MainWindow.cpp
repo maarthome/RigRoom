@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "UiScale.h"
+#include "ScreenFit.h"
 #include "PluginLoadingOverlay.h"
 #include "CredentialStore.h"
 #include "../audio/LV2Host.h"
@@ -421,6 +422,25 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     QSettings windowSettings("RigRoom", "RigRoom");
     const QByteArray windowGeometry = windowSettings.value("main_window_geometry").toByteArray();
     if (!windowGeometry.isEmpty()) restoreGeometry(windowGeometry);
+    // Small screens (a Raspberry Pi touchscreen): the window fills the screen,
+    // and when the controls need more room than the screen has they scroll
+    // instead of running off its edge.
+    {
+        const QRect area = ScreenFit::availableArea(this);
+        if (area.isValid()) {
+            QWidget* content = centralWidget();
+            const QSize needed = content ? content->minimumSizeHint() : QSize();
+            if (content && (needed.width() > area.width() || needed.height() > area.height())) {
+                takeCentralWidget();
+                setCentralWidget(ScreenFit::scrollable(content, this));
+            }
+            if (!area.contains(geometry()) || width() > area.width() || height() > area.height()) {
+                setMinimumSize(minimumSize().boundedTo(area.size()));
+                setGeometry(area);
+                setWindowState(windowState() | Qt::WindowMaximized);
+            }
+        }
+    }
     // The inspector keeps its height in pixels; applyInspectorHeight() fits it
     // in whenever the workspace changes size, so a window that is maximized
     // after start-up still gets the remembered height.
@@ -806,9 +826,10 @@ void MainWindow::setupUI() {
     // Setup Settings Dialog
     m_settingsDialog = new QDialog(this);
     m_settingsDialog->setWindowTitle("Application Settings");
-    m_settingsDialog->setMinimumWidth(860);
-    m_settingsDialog->setMinimumHeight(640);
-    m_settingsDialog->resize(920, 860);
+    // On a small screen the dialog takes what there is; each tab scrolls.
+    m_settingsDialog->setMinimumWidth(ScreenFit::boundedWidth(860, this));
+    m_settingsDialog->setMinimumHeight(ScreenFit::boundedHeight(640, this));
+    m_settingsDialog->resize(ScreenFit::bounded(QSize(920, 860), this));
     m_settingsDialog->setStyleSheet(styleSheet());
     
     QVBoxLayout* dialogLayout = new QVBoxLayout(m_settingsDialog);
@@ -924,9 +945,9 @@ void MainWindow::setupUI() {
     
     audioTabLayout->addWidget(ioBox);
     audioTabLayout->addStretch();
-    int audioTabIdx = mainSettingsTab->addTab(audioTab, "Audio");
+    int audioTabIdx = mainSettingsTab->addTab(ScreenFit::scrollable(audioTab), "Audio");
     m_settingsTabs = mainSettingsTab;
-    m_midiTabIndex = mainSettingsTab->addTab(buildMidiSettingsTab(), "MIDI");
+    m_midiTabIndex = mainSettingsTab->addTab(ScreenFit::scrollable(buildMidiSettingsTab()), "MIDI");
     mainSettingsTab->setTabIcon(m_midiTabIndex, SettingsUi::tabIcon(SettingsUi::TabIcon::Midi));
     mainSettingsTab->setTabIcon(audioTabIdx, SettingsUi::tabIcon(SettingsUi::TabIcon::Audio));
 
@@ -1148,7 +1169,7 @@ void MainWindow::setupUI() {
         }
     });
 
-    int pluginsTabIdx = mainSettingsTab->addTab(pluginsTab, "Plugins & Formats");
+    int pluginsTabIdx = mainSettingsTab->addTab(ScreenFit::scrollable(pluginsTab), "Plugins & Formats");
     mainSettingsTab->setTabIcon(pluginsTabIdx, SettingsUi::tabIcon(SettingsUi::TabIcon::Plugins));
 
     // TAB 3: TONE3000 Integration
@@ -1256,7 +1277,7 @@ void MainWindow::setupUI() {
     toneLayout->addWidget(helpLabel);
     toneTabLayout->addWidget(toneBox);
     toneTabLayout->addStretch();
-    int toneTabIdx = mainSettingsTab->addTab(toneTab, "TONE3000");
+    int toneTabIdx = mainSettingsTab->addTab(ScreenFit::scrollable(toneTab), "TONE3000");
     mainSettingsTab->setTabIcon(toneTabIdx, SettingsUi::tabIcon(SettingsUi::TabIcon::Cloud));
 
     AboutWidget* aboutWidget = new AboutWidget(m_settingsDialog);
@@ -3936,7 +3957,7 @@ void MainWindow::learnParamMidi(const std::shared_ptr<AudioNode>& node, uint32_t
 void MainWindow::showMidiAssignmentsDialog() {
     QDialog dialog(this);
     dialog.setWindowTitle("MIDI Assignments");
-    dialog.setMinimumSize(720, 360);
+    dialog.setMinimumSize(ScreenFit::bounded(QSize(720, 360), this));
     dialog.setStyleSheet(styleSheet());
     auto* layout = new QVBoxLayout(&dialog);
     auto* intro = new QLabel(

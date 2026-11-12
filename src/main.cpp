@@ -11,6 +11,7 @@ extern "C" int XInitThreads(void);
 #include <suil/suil.h>
 #include "ui/PluginSnapshot.h"
 #include "ui/UiScale.h"
+#include "ui/ScreenFit.h"
 #include "Version.h"
 #include <csignal>
 #include <cstdio>
@@ -111,6 +112,8 @@ int main(int argc, char* argv[]) {
     
     QApplication app(argc, argv);
     UiScale::initialize(app);
+    // Dialogs larger than the screen (small touchscreens) are shrunk to fit.
+    app.installEventFilter(new ScreenFit::DialogFitter(&app));
     app.setWindowIcon(QIcon(":/branding/rigroom-icon.png"));
     
     MainWindow window;
