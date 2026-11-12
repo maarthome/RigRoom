@@ -1043,7 +1043,9 @@ void NodeCanvas::updateLayout() {
         setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     }
     
-    qreal H = canvasHeightFor(viewport()->height());
+    // The view shows viewport height / zoom of the scene; filling exactly that
+    // keeps a scroll bar away when everything fits.
+    qreal H = canvasHeightFor(viewport()->height() / std::max(0.01, m_zoomLevel));
     if (m_bandColumns > 0) {
         // Each line is only as tall as its lanes need; the lines stack.
         H = canvasHeightFor(0.0) + 24.0;
@@ -2459,7 +2461,7 @@ void NodeCanvas::setupZoomOverlay() {
         "QToolButton:disabled { color: #555555; background-color: #1A1A1C; border-color: #252528; }";
 
     m_zoomOverlayMinusBtn = new QToolButton(m_zoomOverlay);
-    m_zoomOverlayMinusBtn->setText("➖");
+    m_zoomOverlayMinusBtn->setText(QString::fromUtf8("\u2212"));  // not an emoji: small Linux fonts lack those
     m_zoomOverlayMinusBtn->setFixedSize(22, 22);
     m_zoomOverlayMinusBtn->setToolTip("Zoom Out (Ctrl + Wheel Down)");
     m_zoomOverlayMinusBtn->setCursor(Qt::PointingHandCursor);
@@ -2474,7 +2476,7 @@ void NodeCanvas::setupZoomOverlay() {
     layout->addWidget(m_zoomOverlayLabel);
 
     m_zoomOverlayPlusBtn = new QToolButton(m_zoomOverlay);
-    m_zoomOverlayPlusBtn->setText("➕");
+    m_zoomOverlayPlusBtn->setText("+");
     m_zoomOverlayPlusBtn->setFixedSize(22, 22);
     m_zoomOverlayPlusBtn->setToolTip("Zoom In (Ctrl + Wheel Up)");
     m_zoomOverlayPlusBtn->setCursor(Qt::PointingHandCursor);
