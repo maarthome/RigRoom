@@ -5627,9 +5627,13 @@ private:
                 quint32 contentH = 0;
                 stream >> contentW >> contentH;
                 if (!stream.commitTransaction()) break;
-                if (!m_zoomed) {
+                {
+                    // Again when the plugin changed its size: the window
+                    // keeps one hold on the zoom.
+                    const bool held = m_zoomed;
                     m_zoomed = true;
                     const QSize screenPx = ScreenZoom::enter(QSize(int(contentW), int(contentH)));
+                    if (held) ScreenZoom::leave();
                     std::cerr << "PluginWindow: zoom to fill the screen with " << contentW << "x" << contentH
                               << (screenPx.isValid() ? " done" : " failed (is xrandr installed?)") << std::endl;
                     if (screenPx.isValid() && m_socket) {
@@ -5678,37 +5682,96 @@ private:
 // Zoom the whole screen so a plugin window fills it, then centre the window.
 // Done by the X server, so it works for every plugin GUI. Each call is matched
 // by ScreenZoom::leave() when the window closes.
-static void zoomPluginWindowToScreen(QWidget* window, const QSize& fullLogicalSize) {
+// The content of a full-screen plugin window: what the layout holds below
+// the bar (the plugin's area, or the scroll area around it).
+static QWidget* pluginContentOf(QWidget* window) {
+    auto* layout = qobject_cast<QBoxLayout*>(window->layout());
+    if (!layout) return nullptr;
+    for (int i = 0; i < layout->count(); ++i) {
+        QWidget* widget = layout->itemAt(i)->widget();
+        if (widget && widget->objectName() != "pluginBar") return widget;
+    }
+    return nullptr;
+}
+
+// Lay a full-screen plugin window out for a plugin of `content` logical px:
+// zoom so it fills the screen, the window covering the screen, the plugin
+// centred below the bar. `zoomHeld` says the window already holds a zoom
+// (ScreenZoom::enter) and only changes it.
+static void layoutPluginFullScreen(QWidget* window, const QSize& content, bool zoomHeld) {
     const qreal ratio = window->devicePixelRatioF() > 0.0 ? window->devicePixelRatioF() : 1.0;
-    const QSize contentPx(qRound(fullLogicalSize.width() * ratio), qRound(fullLogicalSize.height() * ratio));
+    const QSize fullLogical(content.width(), content.height() + ScreenFit::kPluginBarHeight);
+    const QSize contentPx(qRound(fullLogical.width() * ratio), qRound(fullLogical.height() * ratio));
     const QSize screenPx = ScreenZoom::enter(contentPx);
+    if (zoomHeld) ScreenZoom::leave();  // keep one hold per window
     std::cerr << "PluginWindow: zoom to fill the screen with " << contentPx.width() << "x" << contentPx.height()
               << (screenPx.isValid() ? QString(" -> screen %1x%2").arg(screenPx.width()).arg(screenPx.height()).toStdString()
                                      : std::string(" failed (is xrandr installed?)"))
               << std::endl;
-    if (!screenPx.isValid() || fullLogicalSize.isEmpty()) return;
-    // The window covers the whole screen in black, the bar across the top
-    // and the plugin centred below it at its own size.
+    if (!screenPx.isValid() || content.isEmpty()) return;
     const QSize screenLogical(qMax(1, qRound(screenPx.width() / ratio)), qMax(1, qRound(screenPx.height() / ratio)));
     window->setProperty("pluginFullScreen", true);
+    window->setProperty("pluginContentSize", content);
     QPalette palette = window->palette();
     palette.setColor(QPalette::Window, Qt::black);
     window->setPalette(palette);
     window->setAutoFillBackground(true);
-    if (auto* layout = qobject_cast<QBoxLayout*>(window->layout())) {
-        const QSize content = QSize(fullLogicalSize.width(), qMax(1, fullLogicalSize.height() - ScreenFit::kPluginBarHeight))
-                                  .boundedTo(QSize(screenLogical.width(), qMax(1, screenLogical.height() - ScreenFit::kPluginBarHeight)));
-        for (int i = 0; i < layout->count(); ++i) {
-            QWidget* widget = layout->itemAt(i)->widget();
-            if (!widget || widget->objectName() == "pluginBar") continue;
-            widget->setFixedSize(content);
-            layout->setAlignment(widget, Qt::AlignCenter);
-        }
+    if (QWidget* widget = pluginContentOf(window)) {
+        widget->setFixedSize(content.boundedTo(QSize(screenLogical.width(),
+                                                     qMax(1, screenLogical.height() - ScreenFit::kPluginBarHeight))));
+        if (auto* layout = qobject_cast<QBoxLayout*>(window->layout())) layout->setAlignment(widget, Qt::AlignCenter);
     }
     window->setMinimumSize(0, 0);
     window->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
     window->resize(screenLogical);
     window->move(0, 0);
+}
+
+// How far the plugin's own X windows reach inside its area (X pixels).
+static QSize pluginWindowsExtent(QWidget* area) {
+    static Display* display = XOpenDisplay(nullptr);
+    if (!display || !area || !area->internalWinId()) return QSize();
+    ::Window root = 0, parent = 0, *children = nullptr;
+    unsigned int count = 0;
+    QSize extent;
+    if (XQueryTree(display, static_cast<::Window>(area->internalWinId()), &root, &parent, &children, &count) && children) {
+        for (unsigned int i = 0; i < count; ++i) {
+            XWindowAttributes attributes{};
+            if (!XGetWindowAttributes(display, children[i], &attributes) || attributes.map_state != IsViewable) continue;
+            extent = extent.expandedTo(QSize(attributes.x + attributes.width, attributes.y + attributes.height));
+        }
+        XFree(children);
+    }
+    return extent;
+}
+
+// Zoom the whole screen so a plugin window fills it, the window covering the
+// screen in black. Done by the X server, so it works for every plugin GUI.
+// Each call is matched by ScreenZoom::leave() when the window closes. Some
+// plugins make their window larger than they said; the area follows them.
+static void zoomPluginWindowToScreen(QWidget* window, const QSize& fullLogicalSize) {
+    const QSize content(fullLogicalSize.width(), qMax(1, fullLogicalSize.height() - ScreenFit::kPluginBarHeight));
+    layoutPluginFullScreen(window, content, false);
+    QWidget* contentWidget = pluginContentOf(window);
+    QWidget* area = contentWidget ? (contentWidget->objectName() == "pluginContainer"
+                                         ? contentWidget : contentWidget->findChild<QWidget*>("pluginContainer"))
+                                  : nullptr;
+    if (!area) return;
+    auto* watch = new QTimer(window);
+    QPointer<QWidget> watchedArea(area);
+    QObject::connect(watch, &QTimer::timeout, window, [window, watchedArea]() {
+        if (!watchedArea) return;
+        const qreal ratio = window->devicePixelRatioF() > 0.0 ? window->devicePixelRatioF() : 1.0;
+        const QSize extentPx = pluginWindowsExtent(watchedArea);
+        if (extentPx.isEmpty()) return;
+        const QSize extent(qCeil(extentPx.width() / ratio), qCeil(extentPx.height() / ratio));
+        const QSize current = window->property("pluginContentSize").toSize();
+        if (extent.width() <= current.width() && extent.height() <= current.height()) return;
+        std::cerr << "PluginWindow: plugin grew to " << extentPx.width() << "x" << extentPx.height() << std::endl;
+        if (watchedArea != pluginContentOf(window)) watchedArea->setFixedSize(extent.expandedTo(current));
+        layoutPluginFullScreen(window, extent.expandedTo(current), true);
+    });
+    watch->start(400);
 }
 
 class VST3PluginUIWindow : public QDialog {
@@ -5806,6 +5869,7 @@ public:
         // with its own X11 window, laid out by Qt. The plugin's X11 window is
         // created inside it, so the plugin can never cover the bar.
         m_containerWidget = new QWidget(this);
+        m_containerWidget->setObjectName("pluginContainer");
         m_containerWidget->setAttribute(Qt::WA_NativeWindow);
         m_containerWidget->setAttribute(Qt::WA_NoSystemBackground);
         m_containerWidget->setAttribute(Qt::WA_OpaquePaintEvent);
@@ -6121,6 +6185,7 @@ public:
         // with its own X11 window, laid out by Qt. The plugin's X11 window is
         // created inside it, so the plugin can never cover the bar.
         m_containerWidget = new QWidget(this);
+        m_containerWidget->setObjectName("pluginContainer");
         m_containerWidget->setAttribute(Qt::WA_NativeWindow);
         m_containerWidget->setAttribute(Qt::WA_NoSystemBackground);
         m_containerWidget->setAttribute(Qt::WA_OpaquePaintEvent);
@@ -6167,6 +6232,12 @@ public:
                 if (ratio <= 0.0) ratio = 1.0;
                 int logicalW = std::round(m_nativeWidth / ratio);
                 int logicalH = std::round(m_nativeHeight / ratio);
+                if (property("pluginFullScreen").toBool()) {
+                    if (m_scrolls) m_containerWidget->setFixedSize(logicalW, logicalH);
+                    layoutPluginFullScreen(this, QSize(logicalW, logicalH), true);
+                    updateChildWindows(m_nativeWidth, m_nativeHeight);
+                    return;
+                }
                 setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
                 setMinimumSize(ScreenFit::bounded(QSize(300, 200), this));
                 if (m_scrolls) m_containerWidget->setFixedSize(logicalW, logicalH);
@@ -6457,6 +6528,7 @@ public:
                     layout->addWidget(widget);
                 }
                 widget->show();
+                widget->setObjectName("pluginContainer");
                 m_uiWidget = widget;
                 QTimer::singleShot(0, this, [this, widget, nativeSize]() {
                     if (m_scrolls) {

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QAbstractSpinBox>
+#include <QDoubleSpinBox>
+#include <QSpinBox>
 #include <QApplication>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -87,7 +89,7 @@ public:
 
     // Ask for a number: the keyboard opens with its own entry line showing
     // `value` (selected, so typing replaces it); Enter calls `done` with the
-    // number (kept within minimum..maximum), Hide cancels. Without the
+    // number (kept within minimum..maximum), BACK cancels. Without the
     // on-screen keyboard this is the usual input dialog.
     static void askValue(QWidget* near, const QString& title, double value, double minimum, double maximum,
                          int decimals, std::function<void(double)> done) {
@@ -117,7 +119,11 @@ public:
         m_entry->setText(QLocale::c().toString(value, 'f', decimals));
         m_entry->selectAll();
         m_entryRow->show();
-        place(near ? near->window() : nullptr, near);
+        showNumberPad(true, minimum < 0.0, decimals > 0);
+        // Keep clear of the control being set: its name, knob and value.
+        QWidget* avoid = near;
+        if (near && near->parentWidget() && near->parentWidget() != near->window()) avoid = near->parentWidget();
+        place(near ? near->window() : nullptr, avoid);
     }
 
     void showFor(QWidget* field) {
@@ -126,6 +132,17 @@ public:
         if (field != m_field) restoreWindow();
         m_field = field;
         m_entryRow->hide();
+        {
+            QLineEdit* edit = qobject_cast<QLineEdit*>(field);
+            if (!edit && (qobject_cast<QAbstractSpinBox*>(field) || qobject_cast<QComboBox*>(field)))
+                edit = field->findChild<QLineEdit*>();
+            if (edit) m_originalText = edit->text();
+            else if (auto* text = qobject_cast<QTextEdit*>(field)) m_originalText = text->toPlainText();
+            else if (auto* plain = qobject_cast<QPlainTextEdit*>(field)) m_originalText = plain->toPlainText();
+        }
+        if (auto* spin = qobject_cast<QSpinBox*>(field)) showNumberPad(true, spin->minimum() < 0, false);
+        else if (auto* dspin = qobject_cast<QDoubleSpinBox*>(field)) showNumberPad(true, dspin->minimum() < 0, dspin->decimals() > 0);
+        else showNumberPad(false);
         place(field->window(), field);
         // Give the field's window the keyboard focus explicitly. Without a
         // window manager X otherwise hands focus to whatever window the finger
@@ -149,12 +166,26 @@ public:
         QScreen* screen = (near && near->screen()) ? near->screen() : QGuiApplication::primaryScreen();
         if (!screen) return;
         const QRect area = screen->availableGeometry();
-        int height = qMax(180, area.height() * 40 / 100);
-        if (m_entryRow->isVisibleTo(this)) height += qMax(48, area.height() * 10 / 100);
-        // Fixed: as the child of a dialog the keys would otherwise take on its
-        // button style and grow the keyboard past the bottom of the screen.
-        setFixedSize(area.width(), height);
-        move(area.left(), area.bottom() + 1 - height);
+        if (m_numberMode) {
+            // A pad down one side of the screen, the side away from the
+            // control, so the control and its value stay in view.
+            const int width = qBound(260, area.width() * 40 / 100, 420);
+            const int height = qMin(area.height(), qMax(300, area.height() * 92 / 100));
+            bool onLeft = false;
+            if (near) {
+                const QRect control(near->mapToGlobal(QPoint(0, 0)), near->size());
+                onLeft = control.center().x() > area.center().x();
+            }
+            setFixedSize(width, height);
+            move(onLeft ? area.left() : area.right() + 1 - width, area.bottom() + 1 - height);
+        } else {
+            int height = qMax(180, area.height() * 40 / 100);
+            if (m_entryRow->isVisibleTo(this)) height += qMax(48, area.height() * 10 / 100);
+            // Fixed: as the child of a dialog the keys would otherwise take on its
+            // button style and grow the keyboard past the bottom of the screen.
+            setFixedSize(area.width(), height);
+            move(area.left(), area.bottom() + 1 - height);
+        }
         show();
         raise();
     }
@@ -180,28 +211,39 @@ private:
             " font-size: 20px; font-weight: bold; padding: 0px; margin: 0px; min-width: 0px; min-height: 0px; }"
             "QPushButton:pressed { background: #00B0FF; color: #07121A; }"
             "QPushButton[special=\"true\"] { background: #3A3D47; font-size: 16px; }"
+            "QPushButton[pad=\"true\"] { font-size: 30px; }"
+            "QPushButton[back=\"true\"] { background: #00897B; color: #FFFFFF; font-size: 18px; }"
+            "QPushButton[enter=\"true\"] { background: #0B4F6C; font-size: 22px; }"
+            "QPushButton:disabled { background: #22242A; color: #4A4D57; }"
             "QPushButton[active=\"true\"] { background: #0B4F6C; }");
-        auto* grid = new QGridLayout(this);
-        grid->setContentsMargins(6, 6, 6, 6);
-        grid->setSpacing(5);
+        auto* outer = new QVBoxLayout(this);
+        outer->setContentsMargins(6, 6, 6, 6);
+        outer->setSpacing(6);
 
         // The entry line for typing a value (askValue); hidden otherwise.
         m_entryRow = new QWidget(this);
-        auto* entryLayout = new QHBoxLayout(m_entryRow);
+        auto* entryLayout = new QVBoxLayout(m_entryRow);
         entryLayout->setContentsMargins(4, 0, 4, 0);
-        entryLayout->setSpacing(12);
+        entryLayout->setSpacing(4);
         m_entryTitle = new QLabel(m_entryRow);
+        m_entryTitle->setWordWrap(true);
         m_entryTitle->setStyleSheet("color: #C9CDD5; font-size: 18px; font-weight: bold; background: transparent;");
         m_entry = new QLineEdit(m_entryRow);
         m_entry->setFocusPolicy(Qt::NoFocus);
         m_entry->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        m_entry->setMinimumHeight(48);
         m_entry->setStyleSheet("QLineEdit { background: #0E0F12; color: #7FD3FF; border: 2px solid #00B0FF;"
-                               " border-radius: 6px; font-size: 26px; font-weight: bold; padding: 2px 10px; }");
-        entryLayout->addWidget(m_entryTitle, 1);
-        entryLayout->addWidget(m_entry, 1);
-        grid->addWidget(m_entryRow, 0, 0, 1, 22);
+                               " border-radius: 6px; font-size: 28px; font-weight: bold; padding: 2px 10px; }");
+        entryLayout->addWidget(m_entryTitle);
+        entryLayout->addWidget(m_entry);
+        outer->addWidget(m_entryRow, 0);
         m_entryRow->hide();
 
+        // All keys.
+        m_fullPage = new QWidget(this);
+        auto* grid = new QGridLayout(m_fullPage);
+        grid->setContentsMargins(0, 0, 0, 0);
+        grid->setSpacing(5);
         // Each row is 20 units wide; a normal key takes 2 units.
         const QStringList rows[] = {
             {"1", "2", "3", "4", "5", "6", "7", "8", "9", "0"},
@@ -210,35 +252,87 @@ private:
             {"z", "x", "c", "v", "b", "n", "m", "-", "."},
         };
         for (int r = 0; r < 4; ++r) {
-            const int gridRow = r + 1;  // row 0 is the entry line
             int column = (r == 2) ? 1 : 0;
             if (r == 3) {
-                addSpecial(grid, gridRow, column, 2, QString::fromUtf8("⇧"), [this]() { setShift(!m_shift); }, &m_shiftKey);
+                addSpecial(grid, r, column, 2, QString::fromUtf8("⇧"), [this]() { setShift(!m_shift); }, &m_shiftKey);
                 column += 2;
             }
             for (const QString& key : rows[r]) {
-                QPushButton* button = addKey(grid, gridRow, column, 2, key);
+                QPushButton* button = addKey(grid, r, column, 2, key);
                 if (key.at(0).isLetter()) m_letterKeys.push_back(button);
                 column += 2;
             }
-            if (r == 0) addSpecial(grid, gridRow, column, 2, QString::fromUtf8("⌫"), [this]() { sendKey(Qt::Key_Backspace, QString()); });
-            if (r == 2) addSpecial(grid, gridRow, column, 3, QString::fromUtf8("⏎"), [this]() { sendKey(Qt::Key_Return, QStringLiteral("\r")); });
+            if (r == 0) addSpecial(grid, r, column, 2, QString::fromUtf8("⌫"), [this]() { sendKey(Qt::Key_Backspace, QString()); });
+            if (r == 2) addSpecial(grid, r, column, 3, QString::fromUtf8("⏎"), [this]() { sendKey(Qt::Key_Return, QStringLiteral("\r")); });
         }
         int column = 0;
-        addSpecial(grid, 5, column, 3, QString::fromUtf8("▼ Hide"), [this]() { hideKeyboard(); });
-        column += 3;
-        addKey(grid, 5, column, 2, "_");
+        addBack(grid, 4, column, 4);
+        column += 4;
+        addKey(grid, 4, column, 2, "_");
         column += 2;
-        addKey(grid, 5, column, 2, "/");
+        addKey(grid, 4, column, 2, "/");
         column += 2;
-        addSpecial(grid, 5, column, 8, "space", [this]() { sendKey(Qt::Key_Space, QStringLiteral(" ")); });
-        column += 8;
-        addSpecial(grid, 5, column, 2, QString::fromUtf8("◀"), [this]() { sendKey(Qt::Key_Left, QString()); });
+        addSpecial(grid, 4, column, 7, "space", [this]() { sendKey(Qt::Key_Space, QStringLiteral(" ")); });
+        column += 7;
+        addSpecial(grid, 4, column, 2, QString::fromUtf8("◀"), [this]() { sendKey(Qt::Key_Left, QString()); });
         column += 2;
-        addSpecial(grid, 5, column, 2, QString::fromUtf8("▶"), [this]() { sendKey(Qt::Key_Right, QString()); });
+        addSpecial(grid, 4, column, 2, QString::fromUtf8("▶"), [this]() { sendKey(Qt::Key_Right, QString()); });
         for (int c = 0; c < 22; ++c) grid->setColumnStretch(c, 1);
-        grid->setRowStretch(0, 0);
-        for (int r = 1; r <= 5; ++r) grid->setRowStretch(r, 1);
+        for (int r = 0; r < 5; ++r) grid->setRowStretch(r, 1);
+        outer->addWidget(m_fullPage, 1);
+
+        // Numbers only: a pad, for number fields and values.
+        m_numberPage = new QWidget(this);
+        auto* pad = new QGridLayout(m_numberPage);
+        pad->setContentsMargins(0, 0, 0, 0);
+        pad->setSpacing(6);
+        const char* padKeys[3][3] = {{"7", "8", "9"}, {"4", "5", "6"}, {"1", "2", "3"}};
+        for (int r = 0; r < 3; ++r)
+            for (int c = 0; c < 3; ++c) addKey(pad, r, c, 1, QString::fromLatin1(padKeys[r][c]))->setProperty("pad", true);
+        addSpecial(pad, 0, 3, 1, QString::fromUtf8("⌫"), [this]() { sendKey(Qt::Key_Backspace, QString()); });
+        m_minusKey = addKey(pad, 1, 3, 1, "-");
+        m_pointKey = addKey(pad, 2, 3, 1, ".");
+        addBack(pad, 3, 0, 1);
+        addKey(pad, 3, 1, 1, "0")->setProperty("pad", true);
+        addSpecial(pad, 3, 2, 2, QString::fromUtf8("⏎ OK"), [this]() { sendKey(Qt::Key_Return, QStringLiteral("\r")); })
+            ->setProperty("enter", true);
+        for (int c = 0; c < 4; ++c) pad->setColumnStretch(c, 1);
+        for (int r = 0; r < 4; ++r) pad->setRowStretch(r, 1);
+        outer->addWidget(m_numberPage, 1);
+        m_numberPage->hide();
+    }
+
+    // BACK: leave without changing anything (like Escape).
+    QPushButton* addBack(QGridLayout* grid, int row, int column, int span) {
+        QPushButton* button = addSpecial(grid, row, column, span, QString::fromUtf8("◀ BACK"), [this]() { goBack(); });
+        button->setProperty("back", true);
+        return button;
+    }
+
+    void goBack() {
+        if (!m_valueMode && m_field) {
+            // Put back what the field held when the keyboard opened.
+            QLineEdit* edit = qobject_cast<QLineEdit*>(m_field.data());
+            if (!edit && (qobject_cast<QAbstractSpinBox*>(m_field.data()) || qobject_cast<QComboBox*>(m_field.data())))
+                edit = m_field->findChild<QLineEdit*>();
+            if (edit && edit->text() != m_originalText) {
+                edit->setText(m_originalText);
+                if (auto* spin = qobject_cast<QAbstractSpinBox*>(m_field.data())) spin->interpretText();
+            } else if (auto* text = qobject_cast<QTextEdit*>(m_field.data())) {
+                text->setPlainText(m_originalText);
+            } else if (auto* plain = qobject_cast<QPlainTextEdit*>(m_field.data())) {
+                plain->setPlainText(m_originalText);
+            }
+        }
+        hideKeyboard();
+    }
+
+    void showNumberPad(bool numbers, bool minus = true, bool point = true) {
+        m_fullPage->setVisible(!numbers);
+        m_numberPage->setVisible(numbers);
+        m_numberMode = numbers;
+        if (m_minusKey) m_minusKey->setEnabled(minus);
+        if (m_pointKey) m_pointKey->setEnabled(point);
     }
 
     QPushButton* makeButton(const QString& label) {
@@ -348,6 +442,7 @@ private:
         QWidget* window = m_field->window();
         if (!window || window == this) return;
         const QRect field(m_field->mapToGlobal(QPoint(0, 0)), m_field->size());
+        if (m_numberMode && !geometry().intersects(field)) return;
         const int keyboardTop = geometry().top();
         const int overlap = field.bottom() + 12 - keyboardTop;
         if (overlap <= 0) return;
@@ -381,6 +476,12 @@ private:
         m_entryRow->hide();
     }
 
+    QWidget* m_fullPage = nullptr;
+    QWidget* m_numberPage = nullptr;
+    QPushButton* m_minusKey = nullptr;
+    QPushButton* m_pointKey = nullptr;
+    bool m_numberMode = false;
+    QString m_originalText;
     QWidget* m_entryRow = nullptr;
     QLabel* m_entryTitle = nullptr;
     QLineEdit* m_entry = nullptr;

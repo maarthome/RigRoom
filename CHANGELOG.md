@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The on-screen keyboard has a BACK key, which leaves the field as it was (like Escape). Number fields and parameter values get a large number pad down the side of the screen away from the control, so the control and its value stay visible.
+- Plugin GUIs that make their window larger than they announced are no longer cut off: the plugin area follows the plugin's real size.
 - Tapping a parameter value opens the on-screen keyboard straight away, with the value in a large entry line at its top; type the new value and press Enter. The small window with arrows is gone.
 - Plugin GUIs fill the whole screen in black, with the plugin centred and its name in large letters in the bar.
 - Click an empty preset slot to start a new preset there; Save keeps it without asking for a name. Right-click an empty slot to copy the current preset into it. The separate New Preset item is gone; Ctrl+N starts a new preset in the first free slot of the bank.

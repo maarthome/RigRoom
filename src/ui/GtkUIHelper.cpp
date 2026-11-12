@@ -443,7 +443,8 @@ struct X11Helper {
     Display* display = nullptr;
     Window window = 0;
     Window child = 0;
-    Window viewport = 0;  // the part of the screen below the bar that shows the plugin
+    Window viewport = 0;
+    int sizeCheckTicks = 0;  // the part of the screen below the bar that shows the plugin
     XFontStruct* barFont = nullptr;
     Atom closeMessage = None;
     const LV2UI_Idle_Interface* idle = nullptr;
@@ -826,6 +827,21 @@ struct X11Helper {
         });
         QObject::connect(&socket, &QLocalSocket::disconnected, &QCoreApplication::quit);
         QObject::connect(&eventTimer, &QTimer::timeout, [&]() {
+            // Some plugins make their window larger (or smaller) than they
+            // said, without asking: follow the window's real size.
+            if (++sizeCheckTicks >= 25 && child) {
+                sizeCheckTicks = 0;
+                XWindowAttributes attributes{};
+                if (XGetWindowAttributes(display, child, &attributes) && attributes.width > 1 && attributes.height > 1 &&
+                    (attributes.width != uiWidth || attributes.height != uiHeight)) {
+                    std::fprintf(stderr, "RigRoom UI helper: plugin window is %dx%d (was %dx%d)\n",
+                                 attributes.width, attributes.height, uiWidth, uiHeight);
+                    uiWidth = attributes.width;
+                    uiHeight = attributes.height;
+                    layoutView();
+                    requestZoom();
+                }
+            }
             while (XPending(display)) {
                 XEvent event{};
                 XNextEvent(display, &event);
