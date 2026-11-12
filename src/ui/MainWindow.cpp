@@ -5778,8 +5778,13 @@ static void zoomPluginWindowToScreen(QWidget* window, const QSize& fullLogicalSi
         }
         window->setProperty("pluginPendingSize", QSize());
         std::cerr << "PluginWindow: plugin grew to " << extentPx.width() << "x" << extentPx.height() << std::endl;
+        // Show it larger, up to the room below the bar, without zooming
+        // again: a plugin that follows the screen size would grow forever.
+        const QSize room(window->width(), qMax(1, window->height() - ScreenFit::kPluginBarHeight));
+        const QSize shown = extent.expandedTo(current).boundedTo(room);
+        window->setProperty("pluginContentSize", extent.expandedTo(current));
         if (watchedArea != pluginContentOf(window)) watchedArea->setFixedSize(extent.expandedTo(current));
-        layoutPluginFullScreen(window, extent.expandedTo(current), true);
+        if (QWidget* content = pluginContentOf(window)) content->setFixedSize(shown);
     });
     watch->start(400);
 }

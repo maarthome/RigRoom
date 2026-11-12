@@ -662,7 +662,15 @@ struct X11Helper {
         if (parentWindow) XSetTransientForHint(display, window, parentWindow);
         screenWidth = DisplayWidth(display, screen);
         screenHeight = DisplayHeight(display, screen);
-        parentFeature.data = reinterpret_cast<void*>(static_cast<uintptr_t>(window));
+        // The plugin is created inside its own area below the bar. Some
+        // plugins make themselves as large as the window they are created in;
+        // created in the full-screen window they would cover the bar and grow
+        // with every zoom.
+        viewport = XCreateSimpleWindow(display, window, 0, kBarHeight, qMax(1, screenWidth),
+                                       qMax(1, screenHeight - kBarHeight), 0,
+                                       BlackPixel(display, screen), BlackPixel(display, screen));
+        XMapWindow(display, viewport);
+        parentFeature.data = reinterpret_cast<void*>(static_cast<uintptr_t>(viewport));
 
         world = lilv_world_new();
         lilv_world_load_all(world);
@@ -744,12 +752,8 @@ struct X11Helper {
         barTitle = QString::fromStdString(lilvTakeString(lilv_plugin_get_name(plugin))).toLatin1();
         gc = XCreateGC(display, window, 0, nullptr);
         loadBarFont();
-        // The plugin goes in a black viewport below the bar, so a plugin
+        // The plugin sits in the black viewport below the bar, so a plugin
         // larger than the screen never covers the bar while it is panned.
-        viewport = XCreateSimpleWindow(display, window, 0, kBarHeight, 1, 1, 0,
-                                       BlackPixel(display, DefaultScreen(display)),
-                                       BlackPixel(display, DefaultScreen(display)));
-        XMapWindow(display, viewport);
         XReparentWindow(display, child, viewport, 0, 0);
         XSizeHints sizeHints{};
         sizeHints.flags = PMinSize | PPosition;
@@ -834,12 +838,11 @@ struct X11Helper {
             if (++sizeCheckTicks >= 25 && child) {
                 sizeCheckTicks = 0;
                 XWindowAttributes attributes{};
-                // Only once the plugin has kept the new size for a moment, and
-                // only when it grew: each change zooms the screen, and a plugin
-                // still settling would make it flicker.
+                // Only once the plugin has kept the new size for a moment, so a
+                // plugin still settling does not make the screen flicker.
                 const bool grew = XGetWindowAttributes(display, child, &attributes) && attributes.width > 1 &&
                                   attributes.height > 1 &&
-                                  (attributes.width > uiWidth || attributes.height > uiHeight);
+                                  (attributes.width != uiWidth || attributes.height != uiHeight);
                 const bool settled = grew && attributes.width == pendingWidth && attributes.height == pendingHeight;
                 pendingWidth = grew ? attributes.width : 0;
                 pendingHeight = grew ? attributes.height : 0;
@@ -847,10 +850,12 @@ struct X11Helper {
                     pendingWidth = pendingHeight = 0;
                     std::fprintf(stderr, "RigRoom UI helper: plugin window is %dx%d (was %dx%d)\n",
                                  attributes.width, attributes.height, uiWidth, uiHeight);
-                    uiWidth = qMax(uiWidth, attributes.width);
-                    uiHeight = qMax(uiHeight, attributes.height);
+                    uiWidth = attributes.width;
+                    uiHeight = attributes.height;
+                    // Only shown in the new size (centred, or panned with the
+                    // arrows when larger than the room): zooming again would
+                    // make a plugin that follows the screen size grow forever.
                     layoutView();
-                    requestZoom();
                 }
             }
             while (XPending(display)) {
