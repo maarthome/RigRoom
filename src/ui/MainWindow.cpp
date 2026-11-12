@@ -5275,6 +5275,7 @@ public:
     }
 
     ~ExternalPluginUIWindow() override {
+        if (m_zoomed) ScreenZoom::leave();
         if (MainWindow* mw = qobject_cast<MainWindow*>(parent())) {
             mw->unregisterExternalUI(this);
         }
@@ -5328,6 +5329,25 @@ private:
                 stream >> index >> value;
                 if (!stream.commitTransaction()) break;
                 m_node->setParameter(index, value);
+            } else if (command == 'Z') {
+                // The helper's plugin window wants to fill the screen.
+                quint32 contentW = 0;
+                quint32 contentH = 0;
+                stream >> contentW >> contentH;
+                if (!stream.commitTransaction()) break;
+                if (!m_zoomed) {
+                    m_zoomed = true;
+                    const QSize screenPx = ScreenZoom::enter(QSize(int(contentW), int(contentH)));
+                    std::cerr << "PluginWindow: zoom to fill the screen with " << contentW << "x" << contentH
+                              << (screenPx.isValid() ? " done" : " failed (is xrandr installed?)") << std::endl;
+                    if (screenPx.isValid() && m_socket) {
+                        QByteArray reply;
+                        QDataStream out(&reply, QIODevice::WriteOnly);
+                        out << quint8('Z') << quint32(screenPx.width()) << quint32(screenPx.height());
+                        m_socket->write(reply);
+                        m_socket->flush();
+                    }
+                }
             } else if (command == 'A') {
                 quint32 index = 0;
                 quint32 protocol = 0;
@@ -5359,6 +5379,7 @@ private:
     QString m_serverName;
     QByteArray m_incoming;
     bool m_valid = false;
+    bool m_zoomed = false;
     WId m_parentWindow = 0;
 };
 

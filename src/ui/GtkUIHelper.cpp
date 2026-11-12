@@ -108,6 +108,30 @@ struct Helper {
         QCoreApplication::quit();
     }
 
+    // Full size of the window's content (plugin and Close button), sent to
+    // RigRoom, which zooms the screen so it fills the panel.
+    int contentWidth = 0;
+    int contentHeight = 0;
+
+    void requestZoom() {
+        if (contentWidth <= 0 || contentHeight <= 0) return;
+        QByteArray message;
+        QDataStream out(&message, QIODevice::WriteOnly);
+        out << quint8('Z') << quint32(contentWidth) << quint32(contentHeight);
+        socket.write(message);
+        socket.flush();
+    }
+
+    void applyZoom(int screenW, int screenH) {
+        using GtkWindowResize = void (*)(void*, int, int);
+        using GtkWindowMove = void (*)(void*, int, int);
+        auto resizeWindow = reinterpret_cast<GtkWindowResize>(gtk.resolve("gtk_window_resize"));
+        auto moveWindow = reinterpret_cast<GtkWindowMove>(gtk.resolve("gtk_window_move"));
+        if (!window || contentWidth <= 0 || contentHeight <= 0) return;
+        if (resizeWindow) resizeWindow(window, contentWidth, contentHeight);
+        if (moveWindow) moveWindow(window, qMax(0, (screenW - contentWidth) / 2), qMax(0, (screenH - contentHeight) / 2));
+    }
+
     Helper(const char* gtkLibrary, const char* containerType, const char* uiType, QString titlePrefix)
         : gtk(gtkLibrary), containerType(containerType), uiType(uiType), titlePrefix(std::move(titlePrefix)) {}
 
@@ -239,6 +263,8 @@ struct Helper {
             }
             GtkRequisitionData wanted{0, 0};
             if (sizeRequest) sizeRequest(pluginWidget, &wanted);
+            contentWidth = wanted.width;
+            contentHeight = wanted.height > 0 ? wanted.height + kCloseBarHeight : 0;
             const int roomHeight = screenHeight - kCloseBarHeight;
             void* content = pluginWidget;
             if (sizeRequest && scrolledNew && setPolicy && addWithViewport && setDefaultSize &&
@@ -271,6 +297,7 @@ struct Helper {
         connectSignal(window, "delete-event", reinterpret_cast<void (*)()>(&Helper::closeWindow),
                        this, nullptr, 0);
         showAll(window);
+        requestZoom();
         if (parentWindow) {
             QLibrary gdk{"libgdk-x11-2.0.so.0"};
             using GdkWindowGetXid = unsigned long (*)(void*);
@@ -302,7 +329,15 @@ struct Helper {
                 stream.startTransaction();
                 quint8 command = 0;
                 stream >> command;
-                if (command == 'P') {
+                if (command == 'Z') {
+                    // RigRoom zoomed the screen for this plugin: show all of
+                    // it, centred.
+                    quint32 screenW = 0;
+                    quint32 screenH = 0;
+                    stream >> screenW >> screenH;
+                    if (!stream.commitTransaction()) break;
+                    applyZoom(int(screenW), int(screenH));
+                } else if (command == 'P') {
                     quint32 index = 0;
                     float value = 0.0f;
                     stream >> index >> value;
@@ -410,6 +445,25 @@ struct X11Helper {
 
     bool pannable() const { return uiWidth > viewWidth || uiHeight > viewHeight; }
 
+    // Ask RigRoom to zoom the screen so the whole plugin fills the panel.
+    void requestZoom() {
+        const int contentWidth = qMax(kCloseWidth + 4 * kArrowWidth + 16, uiWidth);
+        const int contentHeight = uiHeight + kBarHeight;
+        QByteArray message;
+        QDataStream out(&message, QIODevice::WriteOnly);
+        out << quint8('Z') << quint32(contentWidth) << quint32(contentHeight);
+        socket.write(message);
+        socket.flush();
+    }
+
+    // RigRoom zoomed the screen: it now holds the whole plugin.
+    void applyZoom(int screenW, int screenH) {
+        if (screenW <= 0 || screenH <= 0) return;
+        screenWidth = screenW;
+        screenHeight = screenH;
+        layoutView();
+    }
+
     // Size the window to the plugin, no larger than the screen, and place the
     // plugin below the bar, shifted by the pan offset.
     void layoutView() {
@@ -419,7 +473,8 @@ struct X11Helper {
         viewHeight = qMax(1, qMin(uiHeight, screenHeight - kBarHeight));
         panX = qBound(0, panX, qMax(0, uiWidth - viewWidth));
         panY = qBound(0, panY, qMax(0, uiHeight - viewHeight));
-        XMoveResizeWindow(display, window, 0, 0, viewWidth, viewHeight + kBarHeight);
+        XMoveResizeWindow(display, window, qMax(0, (screenWidth - viewWidth) / 2),
+                          qMax(0, (screenHeight - viewHeight - kBarHeight) / 2), viewWidth, viewHeight + kBarHeight);
         if (child) XMoveResizeWindow(display, child, -panX, kBarHeight - panY, qMax(1, uiWidth), qMax(1, uiHeight));
         drawBar();
         XFlush(display);
@@ -611,6 +666,7 @@ struct X11Helper {
         layoutView();
         XMapRaised(display, window);
         XFlush(display);
+        requestZoom();
 
         idle = static_cast<const LV2UI_Idle_Interface*>(
             suil_instance_extension_data(instance, LV2_UI__idleInterface));
@@ -630,7 +686,15 @@ struct X11Helper {
                 stream.startTransaction();
                 quint8 command = 0;
                 stream >> command;
-                if (command == 'P') {
+                if (command == 'Z') {
+                    // RigRoom zoomed the screen for this plugin: show all of
+                    // it, centred.
+                    quint32 screenW = 0;
+                    quint32 screenH = 0;
+                    stream >> screenW >> screenH;
+                    if (!stream.commitTransaction()) break;
+                    applyZoom(int(screenW), int(screenH));
+                } else if (command == 'P') {
                     quint32 index = 0;
                     float value = 0.0f;
                     stream >> index >> value;
