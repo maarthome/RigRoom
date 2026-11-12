@@ -5486,7 +5486,7 @@ public:
         QTimer::singleShot(800, this, [this]() {
             if (!m_containerWidget) return;
             const QPoint at = m_containerWidget->mapTo(this, QPoint(0, 0));
-            std::cerr << "PluginWindow: window " << x() << "," << y() << " " << width() << "x" << height()
+            std::cerr << "PluginWindow: window " << this->x() << "," << this->y() << " " << this->width() << "x" << this->height()
                       << ", plugin area at " << at.x() << "," << at.y() << " "
                       << m_containerWidget->width() << "x" << m_containerWidget->height()
                       << " (logical px), plugin " << m_nativeWidth << "x" << m_nativeHeight << " device px" << std::endl;
@@ -5790,7 +5790,7 @@ public:
         QTimer::singleShot(800, this, [this]() {
             if (!m_containerWidget) return;
             const QPoint at = m_containerWidget->mapTo(this, QPoint(0, 0));
-            std::cerr << "PluginWindow: window " << x() << "," << y() << " " << width() << "x" << height()
+            std::cerr << "PluginWindow: window " << this->x() << "," << this->y() << " " << this->width() << "x" << this->height()
                       << ", plugin area at " << at.x() << "," << at.y() << " "
                       << m_containerWidget->width() << "x" << m_containerWidget->height()
                       << " (logical px), plugin " << m_nativeWidth << "x" << m_nativeHeight << " device px" << std::endl;
