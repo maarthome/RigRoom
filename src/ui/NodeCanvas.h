@@ -171,6 +171,12 @@ public:
     // ("logical") to where they are drawn ("scene").
     void setSnakeLayout(bool enabled);
     bool snakeLayout() const { return m_snake; }
+    // Blocks per line in the snake layout; 0 = as many as fit the width.
+    void setSnakeColumns(int columns);
+    // The zoom box in the lower-right corner, e.g. to scale it; call
+    // refreshZoomOverlay() after changing its size.
+    QFrame* zoomOverlay() const { return m_zoomOverlay; }
+    void refreshZoomOverlay();
     QPointF toScene(const QPointF& logical) const;
     // A box of the given width whose top-left is `logicalTopLeft`, mapped by
     // its centre (boxes on a right-to-left line keep their orientation).
@@ -235,6 +241,7 @@ private:
     qreal canvasHeightFor(qreal viewportHeight) const;
     int snakeBandOf(qreal u) const;
     bool m_snake = false;
+    int m_snakeColumns = 0;    // chosen blocks per line; 0 = fit the width
     int m_bandColumns = 0;     // columns per line; 0 = one straight line
     int m_bandCount = 1;
     qreal m_bandHeight = 0.0;  // height of one line (all its lanes)

@@ -2,6 +2,7 @@
 #include "UiScale.h"
 #include "ScreenFit.h"
 #include "ScreenZoom.h"
+#include "SectionScale.h"
 #include "PluginLoadingOverlay.h"
 #include "CredentialStore.h"
 #include "../audio/LV2Host.h"
@@ -916,7 +917,9 @@ void MainWindow::setupUI() {
         "double-tapping a block opens its parameters on a page of their own; BACK returns to the board. "
         "With <i>Below the board</i>, the parameters sit under the board as before.<br><br>"
         "<b>Controls per row</b>: how many parameter controls sit side by side.<br><br>"
-        "Text size and screen scale take effect the next time RigRoom starts.");
+        "<b>Plugins per line</b>: how many blocks sit on one line of the snake before it turns.<br><br>"
+        "Text size, screen scale and the sizes of the bank/presets/scenes, top toolbar and corner "
+        "controls take effect the next time RigRoom starts.");
     guiBox->setStyleSheet(UiScale::css(SettingsUi::kGroupStyle));
     QFormLayout* guiForm = SettingsUi::form(guiBox);
 
@@ -943,6 +946,44 @@ void MainWindow::setupUI() {
         if (m_canvas) m_canvas->setSnakeLayout(snake);
     });
     guiForm->addRow("Signal Chain:", chainLayoutCombo);
+
+    QSpinBox* perLineSpin = new QSpinBox(m_settingsDialog);
+    perLineSpin->setRange(0, NodeCanvas::MAX_COLS);
+    perLineSpin->setSpecialValueText("Auto (fit the width)");
+    perLineSpin->setValue(std::clamp(QSettings("RigRoom", "RigRoom").value("gui_snake_columns", 0).toInt(), 0, NodeCanvas::MAX_COLS));
+    perLineSpin->setToolTip("How many plugin blocks sit on one line of the snake before it turns");
+    connect(perLineSpin, &QSpinBox::valueChanged, this, [this](int count) {
+        QSettings("RigRoom", "RigRoom").setValue("gui_snake_columns", count);
+        if (m_canvas) m_canvas->setSnakeColumns(count);
+    });
+    guiForm->addRow("Plugins per Line:", perLineSpin);
+
+    QSpinBox* blockSizeSpin = new QSpinBox(m_settingsDialog);
+    blockSizeSpin->setRange(50, 200);
+    blockSizeSpin->setSingleStep(10);
+    blockSizeSpin->setSuffix("%");
+    blockSizeSpin->setValue(std::clamp(QSettings("RigRoom", "RigRoom").value("gui_block_scale", 100).toInt(), 50, 200));
+    blockSizeSpin->setToolTip("Size of the plugin blocks on the board");
+    connect(blockSizeSpin, &QSpinBox::valueChanged, this, [this](int percent) {
+        QSettings("RigRoom", "RigRoom").setValue("gui_block_scale", percent);
+        if (m_canvas) m_canvas->setZoomLevel(percent / 100.0);
+    });
+    guiForm->addRow("Plugin Block Size:", blockSizeSpin);
+
+    // Sizes of other parts of the window; they apply at the next start.
+    auto addSectionSize = [this, guiForm](const QString& label, const char* key, const QString& tip) {
+        auto* spin = new QSpinBox(m_settingsDialog);
+        spin->setRange(50, 300);
+        spin->setSingleStep(10);
+        spin->setSuffix("%");
+        spin->setValue(SectionScale::percent(key));
+        spin->setToolTip(tip + " (applies the next time RigRoom starts)");
+        connect(spin, &QSpinBox::valueChanged, this, [key](int percent) { SectionScale::setPercent(key, percent); });
+        guiForm->addRow(label, spin);
+    };
+    addSectionSize("Bank / Presets / Scenes:", "gui_panel_scale", "Size of the bank, preset A-D and scene buttons");
+    addSectionSize("Top Toolbar:", "gui_toolbar_scale", "Size of the items in the top row");
+    addSectionSize("Corner Controls:", "gui_corner_scale", "Size of the zoom and column controls in the board's lower-right corner");
 
     QSpinBox* perRowSpin = new QSpinBox(m_settingsDialog);
     perRowSpin->setRange(1, 16);
@@ -1617,6 +1658,7 @@ void MainWindow::setupUI() {
         m_canvas->setAutoFit(canvasSettings.value("canvas_auto_fit", false).toBool());
         // Settings > GUI: fold the signal path into lines that fit the width.
         m_canvas->setSnakeLayout(canvasSettings.value("gui_snake_layout", true).toBool());
+        m_canvas->setSnakeColumns(canvasSettings.value("gui_snake_columns", 0).toInt());
         connect(m_canvas, &NodeCanvas::autoFitChanged, this, [](bool enabled) {
             QSettings("RigRoom", "RigRoom").setValue("canvas_auto_fit", enabled);
         });
@@ -1717,6 +1759,22 @@ void MainWindow::setupUI() {
     }
     m_paramPage->hide();
     installEventFilter(this);  // keeps the page the size of the window
+
+    // Settings > GUI: sizes of the parts of the window.
+    SectionScale::apply(topBarWidget, "gui_toolbar_scale");
+    SectionScale::apply(panel, "gui_panel_scale");
+    if (QFrame* corner = m_canvas ? m_canvas->zoomOverlay() : nullptr) {
+        SectionScale::apply(corner, "gui_corner_scale");
+        m_canvas->refreshZoomOverlay();
+    }
+    {
+        const int blockPercent = std::clamp(QSettings("RigRoom", "RigRoom").value("gui_block_scale", 100).toInt(), 50, 200);
+        if (m_canvas && blockPercent != 100) {
+            QTimer::singleShot(0, this, [this, blockPercent]() {
+                if (m_canvas) m_canvas->setZoomLevel(blockPercent / 100.0);
+            });
+        }
+    }
     setParameterPageMode(QSettings("RigRoom", "RigRoom").value("gui_parameter_page", true).toBool());
     
     // --- STATUS BAR ---

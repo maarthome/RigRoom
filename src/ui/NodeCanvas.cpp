@@ -1016,9 +1016,12 @@ void NodeCanvas::updateLayout() {
     m_trackBase = MARGIN_X + inputW + CanvasMetrics::clearGap / 2.0;
     m_bandColumns = 0;
     m_bandCount = 1;
-    if (m_snake && !fitsInViewport) {
-        const qreal room = visibleSceneW - m_trackBase - CanvasMetrics::clearGap - outputW - MARGIN_X;
-        const int perLine = std::max(2, int(std::floor(room / CanvasMetrics::columnPitch)));
+    if (m_snake && (m_snakeColumns > 0 || !fitsInViewport)) {
+        int perLine = m_snakeColumns;
+        if (perLine <= 0) {
+            const qreal room = visibleSceneW - m_trackBase - CanvasMetrics::clearGap - outputW - MARGIN_X;
+            perLine = std::max(2, int(std::floor(room / CanvasMetrics::columnPitch)));
+        }
         if (perLine < m_numCols) {
             m_bandColumns = perLine;
             m_bandCount = (m_numCols + perLine - 1) / perLine;
@@ -1232,6 +1235,17 @@ int NodeCanvas::nearestGap(int row, const QPointF& scenePos, int maxGap) const {
         }
     }
     return best;
+}
+
+void NodeCanvas::setSnakeColumns(int columns) {
+    columns = std::clamp(columns, 0, MAX_COLS);
+    if (m_snakeColumns == columns) return;
+    m_snakeColumns = columns;
+    updateLayout();
+}
+
+void NodeCanvas::refreshZoomOverlay() {
+    updateZoomOverlayPos();
 }
 
 void NodeCanvas::setSnakeLayout(bool enabled) {

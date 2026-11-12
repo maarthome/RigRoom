@@ -1,4 +1,5 @@
 #include "FootswitchTile.h"
+#include "SectionScale.h"
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -33,7 +34,11 @@ void FootswitchTile::setState(State state) {
     update();
 }
 
-QSize FootswitchTile::sizeHint() const { return {128, 44}; }
+QSize FootswitchTile::sizeHint() const {
+    // Settings > GUI > Bank / Presets / Scenes size.
+    const qreal scale = SectionScale::factorOf(this);
+    return {qRound(128 * scale), qRound(44 * scale)};
+}
 QSize FootswitchTile::minimumSizeHint() const { return {64, 44}; }
 
 void FootswitchTile::mouseDoubleClickEvent(QMouseEvent* event) {
@@ -60,7 +65,10 @@ void FootswitchTile::leaveEvent(QEvent* event) {
 void FootswitchTile::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
-    const QRectF r = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+    // Draw in the tile's unscaled units; the painter scales it to its size.
+    const qreal scale = SectionScale::factorOf(this);
+    p.scale(scale, scale);
+    const QRectF r = QRectF(0.0, 0.0, width() / scale, height() / scale).adjusted(0.5, 0.5, -0.5, -0.5);
     const QColor unsaved(0xFF, 0x98, 0x00);
 
     QColor bg("#232428");
