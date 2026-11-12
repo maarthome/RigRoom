@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QIcon>
+#include <QPalette>
 extern "C" int XInitThreads(void);
 #include "ui/MainWindow.h"
 #include "ui/GtkUIHelper.h"
@@ -128,6 +129,30 @@ int main(int argc, char* argv[]) {
     app.installEventFilter(new ScreenFit::DialogFitter(&app));
     // Touch keyboard for text fields (Settings > GUI > On-screen Keyboard).
     OnScreenKeyboard::install(app);
+    {
+        // Dark everywhere: drop-down lists (also those a plugin's parameters
+        // open), menus and item views otherwise take the light default
+        // palette and come up white.
+        QPalette dark = app.palette();
+        dark.setColor(QPalette::Window, QColor("#18191D"));
+        dark.setColor(QPalette::WindowText, QColor("#E0E0E0"));
+        dark.setColor(QPalette::Base, QColor("#000000"));
+        dark.setColor(QPalette::AlternateBase, QColor("#121316"));
+        dark.setColor(QPalette::Text, QColor("#E0E0E0"));
+        dark.setColor(QPalette::Button, QColor("#2A2C33"));
+        dark.setColor(QPalette::ButtonText, QColor("#E0E0E0"));
+        dark.setColor(QPalette::Highlight, QColor("#007ACC"));
+        dark.setColor(QPalette::HighlightedText, QColor("#FFFFFF"));
+        dark.setColor(QPalette::ToolTipBase, QColor("#000000"));
+        dark.setColor(QPalette::ToolTipText, QColor("#E0E0E0"));
+        app.setPalette(dark);
+        app.setStyleSheet(app.styleSheet() +
+            "QComboBox QAbstractItemView, QComboBoxPrivateContainer {"
+            " background-color: #000000; color: #E0E0E0; border: 1px solid #333333;"
+            " selection-background-color: #007ACC; selection-color: #FFFFFF; outline: none; }"
+            "QComboBox QAbstractItemView::item { min-height: 36px; padding: 0px 8px; }"
+            "QComboBox QAbstractItemView::item:selected { background-color: #007ACC; color: #FFFFFF; }");
+    }
     app.setWindowIcon(QIcon(":/branding/rigroom-icon.png"));
     
     MainWindow window;

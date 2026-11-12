@@ -625,7 +625,15 @@ void MainWindow::setupUI() {
         QAbstractSpinBox::down-arrow { image: url(:/icons/spin-down.png); width: 16px; height: 16px; }
         /* Drop-down lists and item views take the palette's light base colour
            unless told otherwise, so combo popups came up almost white. */
-        QComboBox QAbstractItemView, QAbstractItemView {
+        QComboBox QAbstractItemView, QComboBoxPrivateContainer {
+            background-color: #000000;
+            color: #E0E0E0;
+            border: 1px solid #333333;
+            outline: none;
+            selection-background-color: #007ACC;
+            selection-color: white;
+        }
+        QAbstractItemView {
             background-color: #1E1E1E;
             color: #E0E0E0;
             border: 1px solid #333333;
